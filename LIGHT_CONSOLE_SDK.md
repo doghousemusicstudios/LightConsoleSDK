@@ -408,16 +408,37 @@ User taps "Big Finish"
 ### Failover
 
 ```
-Console goes offline (heartbeat timeout)
-  → SDK detects via ArtPoll/OSC heartbeat monitoring
-  → If failover enabled:
-      → ShowUp temporarily takes over console-owned universes
-      → Applies fallback look (last capture / ambient / blackout)
-      → Shows notification: "Console offline — ShowUp taking over"
+Console goes offline (15 consecutive missed heartbeats)
+  → SDK detects via protocol-specific heartbeat monitoring
+  → If failover enabled AND requireConfirmation = true:
+      → Shows notification: "Console offline — take over?" [Yes] [No]
+  → If confirmed (or requireConfirmation = false):
+      → ShowUp fades in on console-owned universes over 3 seconds
+      → Applies fallback look (last capture / ambient warm — NEVER blackout by default)
+      → Strobe is not an available failover option
   → Console comes back online:
       → ShowUp fades back to its own universes over 2 seconds
       → Console regains control seamlessly
+  → Failover defaults: disabled, 15-heartbeat timeout, confirmation required
 ```
+
+---
+
+## Safety Architecture
+
+The SDK implements 9 defense layers to prevent integration failures. See `RISKS_AND_MITIGATIONS.md` for the complete analysis of 17 identified risks.
+
+**Key safety features built into the SDK:**
+
+- **`UniverseAddress` type safety** — all universe references use a typed wrapper with explicit `.artNet` (0-indexed), `.sacn` (1-indexed), and `.bufferIndex` conversions. Prevents off-by-one bugs at compile time.
+- **Universe role enforcement** — `DmxEngine._tick()` checks roles before every send. Console-owned universes never receive ShowUp output. Protected channels are hard-blocked regardless of role.
+- **sACN channel strategy** — on shared universes, ShowUp only outputs channels with patched fixtures. Unpatched channels are excluded from the sACN frame, preventing zero-value overrides of console output.
+- **Heartbeat monitoring** — protocol-specific pings (OSC, Telnet, ArtPoll) detect console dropout within 15 seconds. Console-specific messages guide the user (e.g., "restart OSC session on your MA3").
+- **Failover safety defaults** — disabled by default, 15-heartbeat timeout, operator confirmation required, 3-second fade-in, never defaults to blackout, strobe blocked as a failover option.
+- **`NetworkDiagnostic`** — tests multicast delivery, unicast UDP, TCP connectivity, and ArtPoll response before the wizard proceeds. Detects IGMP snooping issues and blocked ports with actionable suggestions.
+- **OSC reliability** — critical commands (cue fire, blackout) sent 3x with 10ms spacing. TCP preferred for Eos.
+- **Stealth mode** — suppresses all network output (ArtPoll, sACN, OSC) when a touring LD is present.
+- **Art-Net output controls** — unicast by default, broadcast warning at >8 universes, auto-switch to unicast at >16, WiFi detection with lower thresholds.
 
 ---
 

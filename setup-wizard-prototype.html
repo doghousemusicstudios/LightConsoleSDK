@@ -310,6 +310,31 @@
     <div id="discoveryResult" style="display:none;"></div>
   </div>
 
+  <!-- ═══ STEP 0.5: NETWORK DIAGNOSTIC ═══ -->
+  <div class="step" id="step-diag">
+    <div class="step-title">Network Diagnostic</div>
+    <div class="step-sub">Testing connectivity before we proceed. This takes a few seconds.</div>
+
+    <div id="diagResults" style="display:none;">
+      <div class="card" id="diagCard">
+        <h3>Network Test Results</h3>
+        <div id="diagList" style="margin-top:12px;"></div>
+      </div>
+      <div id="diagWarnings"></div>
+    </div>
+
+    <div style="text-align:center; margin:24px 0;" id="diagRunSection">
+      <button class="btn btn-console" onclick="runDiagnostic()" id="diagBtn" style="padding:12px 28px; font-size:14px;">
+        Run Network Diagnostic
+      </button>
+    </div>
+
+    <div class="step-nav" id="diagNav" style="display:none;">
+      <button class="btn btn-ghost" onclick="goStep(0)">Back to Discovery</button>
+      <button class="btn btn-primary" onclick="goStep(1)">Continue to Setup</button>
+    </div>
+  </div>
+
   <!-- ═══ STEP 1: MODE SELECTION ═══ -->
   <div class="step" id="step-1">
     <div class="wizard-progress" id="wizProgress"></div>
@@ -709,7 +734,7 @@ function simulateDiscovery() {
           </div>
         `).join('')}
         <div class="disc-actions">
-          <button class="btn btn-primary" onclick="goStep(1)" style="flex:1; justify-content:center;">Set Up Coexistence</button>
+          <button class="btn btn-primary" onclick="goStep('diag')" style="flex:1; justify-content:center;">Set Up Coexistence</button>
           <button class="btn btn-ghost" style="flex:0;">Later</button>
         </div>
       </div>
@@ -734,19 +759,145 @@ function goStep(n) {
   document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
   document.getElementById('step-' + n).classList.add('active');
 
-  if (n >= 1) {
+  if (typeof n === 'number' && n >= 1) {
     for (let i = 1; i <= 5; i++) {
       const el = document.getElementById('wizProgress' + (i === 1 ? '' : i));
       if (el) el.innerHTML = buildProgress(n);
     }
   }
 
+  if (n === 'diag') setupDiagStep();
   if (n === 1) setupModeStep();
   if (n === 2) setupUniverseStep();
   if (n === 3) setupConnectionStep();
   if (n === 4) setupImportStep();
   if (n === 5) setupSummary();
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── Step 0.5: Network Diagnostic ──
+function setupDiagStep() {
+  document.getElementById('diagResults').style.display = 'none';
+  document.getElementById('diagNav').style.display = 'none';
+  document.getElementById('diagRunSection').style.display = 'block';
+  const btn = document.getElementById('diagBtn');
+  btn.disabled = false;
+  btn.textContent = 'Run Network Diagnostic';
+}
+
+function runDiagnostic() {
+  const p = profiles[currentConsole];
+  const btn = document.getElementById('diagBtn');
+  btn.disabled = true;
+  btn.textContent = 'Testing...';
+
+  const tests = [
+    { name: 'ArtPoll Response', desc: `Broadcast ArtPoll to ${p.ip}`, key: 'artpoll' },
+    { name: 'Unicast UDP', desc: `UDP to ${p.ip}:${p.protocols[0].port || 6454}`, key: 'unicast' },
+    { name: 'Multicast (sACN)', desc: 'sACN multicast loopback on 239.255.0.1', key: 'multicast' },
+  ];
+  if (p.protocols.find(pr => pr.value.includes('tcp') || pr.value === 'telnet')) {
+    const tcpProt = p.protocols.find(pr => pr.value.includes('tcp') || pr.value === 'telnet');
+    tests.push({ name: 'TCP Connection', desc: `TCP to ${p.ip}:${tcpProt.port}`, key: 'tcp' });
+  }
+
+  // Console-specific tests
+  const consoleTests = {
+    ma: [{ name: 'OSC Echo', desc: '/gma3/cmd "" (empty no-op)', key: 'osc' }],
+    etc: [{ name: 'Eos Version Query', desc: '/eos/get/version via TCP', key: 'osc' }],
+    mq: [{ name: 'Playback Query', desc: '/ch/playback/1/level', key: 'osc' }],
+    onyx: [{ name: 'Telnet QLList', desc: 'QLList via Telnet port 2323', key: 'telnet' }],
+  };
+  tests.push(...(consoleTests[currentConsole] || []));
+
+  // Simulate results with console-specific outcomes
+  const diagList = document.getElementById('diagList');
+  diagList.innerHTML = tests.map(t =>
+    `<div class="field-row" id="diag-${t.key}" style="opacity:0.3;">
+      <span style="font-size:14px; min-width:24px;">&#x23F3;</span>
+      <span class="field-label" style="min-width:140px;">${t.name}</span>
+      <span style="font-size:12px; color:var(--text-muted); flex:1;">${t.desc}</span>
+      <span id="diag-result-${t.key}" style="font-size:12px; min-width:80px; text-align:right;"></span>
+    </div>`
+  ).join('');
+
+  document.getElementById('diagResults').style.display = 'block';
+  document.getElementById('diagRunSection').style.display = 'none';
+
+  // Animate results one by one
+  let i = 0;
+  const timer = setInterval(() => {
+    if (i >= tests.length) {
+      clearInterval(timer);
+      showDiagSummary(tests);
+      return;
+    }
+    const t = tests[i];
+    const row = document.getElementById('diag-' + t.key);
+    const result = document.getElementById('diag-result-' + t.key);
+    row.style.opacity = '1';
+
+    // Determine pass/fail — multicast fails on some consoles to demo the warning
+    let passed = true;
+    let latency = Math.floor(Math.random() * 30) + 5;
+    let failReason = '';
+
+    // Simulate a realistic multicast warning for demo purposes
+    if (t.key === 'multicast' && Math.random() > 0.6) {
+      passed = false;
+      failReason = 'No loopback — IGMP snooping may be blocking multicast';
+    }
+
+    row.querySelector('span').innerHTML = passed
+      ? '<span style="color:var(--success);">&#x2713;</span>'
+      : '<span style="color:var(--warning);">&#x26A0;</span>';
+    result.innerHTML = passed
+      ? `<span style="color:var(--success);">${latency}ms</span>`
+      : `<span style="color:var(--warning);">Warning</span>`;
+
+    tests[i].passed = passed;
+    tests[i].failReason = failReason;
+    tests[i].latency = latency;
+    i++;
+  }, 600);
+}
+
+function showDiagSummary(tests) {
+  const warnings = tests.filter(t => !t.passed);
+  const allPassed = warnings.length === 0;
+  const warningsDiv = document.getElementById('diagWarnings');
+
+  if (allPassed) {
+    warningsDiv.innerHTML = `
+      <div class="req-callout success" style="margin-top:16px;">
+        <div class="req-title">All Tests Passed</div>
+        <p>Network connectivity looks good. All required protocols are reachable.</p>
+      </div>`;
+  } else {
+    let html = '';
+    warnings.forEach(w => {
+      html += `
+        <div class="req-callout" style="margin-top:12px;">
+          <div class="req-title">${w.name} — Warning</div>
+          <p>${w.failReason}</p>
+          ${w.key === 'multicast' ? `
+            <ul>
+              <li>Check if your switch has IGMP snooping enabled — try disabling it</li>
+              <li>Ensure only ONE switch is running the IGMP querier</li>
+              <li>Or: switch ShowUp to <strong>unicast sACN</strong> mode (direct IP targeting instead of multicast)</li>
+              <li>Disable Energy Efficient Ethernet (EEE / "Green Ethernet" / 802.3az) on your switch</li>
+            </ul>` : ''}
+        </div>`;
+    });
+    html += `
+      <div class="req-callout" style="margin-top:12px;">
+        <div class="req-title">You can still proceed</div>
+        <p>Warnings don't block setup — ShowUp can fall back to unicast mode. But fixing these issues will give you the most reliable connection.</p>
+      </div>`;
+    warningsDiv.innerHTML = html;
+  }
+
+  document.getElementById('diagNav').style.display = 'flex';
 }
 
 // ── Step 1: Mode ──
