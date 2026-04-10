@@ -503,45 +503,44 @@
         <div class="console-logo onyx">NX</div>
         <div><div class="console-name">Obsidian Onyx</div><div class="console-mfg">Obsidian Control Systems (NX4, NX2, NX1, NX Wing)</div></div>
       </div>
-      <p>MIDI Show Control is the strongest path. Budget-friendly hardware. Significant API limitations. DMX sniffing essential.</p>
+      <p>Telnet API (port 2323) transforms integration. Direct cuelist control, active state polling, cuelist name import. MSC for MIDI triggers.</p>
       <div class="console-detail">
         <div class="card" style="margin-top:16px; background: var(--bg-deep);">
-          <h3 style="color: var(--onyx-red);">What ShowUp Can Do</h3>
+          <h3 style="color: var(--onyx-red);">What ShowUp Can Do via Telnet API</h3>
           <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
-            <li>Control playback faders 1-10, buttons 1-20</li>
-            <li>Set GrandMaster and FlashMaster levels</li>
-            <li>Trigger 50+ keyboard functions via OSC</li>
-            <li><strong>MIDI Show Control (MSC)</strong> &mdash; Onyx's strongest integration path</li>
-            <li>MIDI notes and timecode input</li>
-            <li>sACN and Art-Net output</li>
-            <li>Detect on network via ArtPoll</li>
-            <li>CITP for media server thumbnail exchange</li>
-            <li>Telnet/UDP exterior triggers (v4.10+)</li>
+            <li><strong><code>GQL {n}</code></strong> &mdash; fire ANY cuelist (no 10-fader limit)</li>
+            <li><strong><code>GTQ {n},{cue}</code></strong> &mdash; go to specific cue in any cuelist</li>
+            <li><strong><code>SQL {n},{level}</code></strong> &mdash; set fader level (0-255) for any cuelist</li>
+            <li><strong><code>QLList</code></strong> &mdash; get all cuelist names (populate Console Quick Actions)</li>
+            <li><strong><code>QLActive</code></strong> &mdash; poll active cuelists (detect cue changes at 1Hz)</li>
+            <li><strong><code>IsQLActive {n}</code></strong> &mdash; check specific cuelist state</li>
+            <li><code>RQL</code>, <code>PQL</code>, <code>RAQL</code>, <code>RAQLO</code>, <code>RAQLDF</code> &mdash; release/pause controls</li>
+            <li><code>CLRCLR</code> &mdash; clear programmer</li>
           </ul>
         </div>
         <div class="card" style="background: var(--bg-deep);">
-          <h3 style="color: var(--warning);">Feedback (severely limited)</h3>
+          <h3 style="color: var(--shared-green);">Feedback via Telnet + OSC + DMX</h3>
           <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
-            <li>OSC feedback <strong>only</strong> for: MainPlaybackButtons, MainPlaybackFaders, Programmer keys, F-Keys</li>
-            <li>All other functions provide <strong>zero feedback</strong></li>
-            <li>Onyx does <strong>NOT generate MIDI</strong> &mdash; receive only, no note-on when cues fire</li>
-            <li><strong>DMX sniffing (sACN input)</strong> is the primary feedback path &mdash; read Onyx's output to infer fixture state</li>
-            <li>Workaround: dedicate DMX channel as "ShowUp control channel", read via sACN</li>
+            <li><strong>Telnet <code>QLActive</code> polling</strong> &mdash; ShowUp detects when cuelists activate/deactivate (1Hz)</li>
+            <li><strong>Telnet <code>QLList</code></strong> &mdash; import cuelist names for Console Quick Action buttons</li>
+            <li><strong>OSC feedback</strong> for main playback faders/buttons (via ShowCockpit)</li>
+            <li><strong>DMX sniffing (sACN)</strong> &mdash; read Onyx's output to capture fixture state</li>
+            <li>Community-proven: <a href="https://github.com/jeffmikels/obsidian_onyx_python" style="color:var(--console-blue);">obsidian_onyx_python</a> and Bitfocus Companion both use this API</li>
           </ul>
         </div>
         <div class="card" style="background: var(--bg-deep);">
-          <h3 style="color: var(--danger);">Hard Limitations</h3>
+          <h3 style="color: var(--danger);">Remaining Limitations</h3>
           <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
-            <li><strong>No MVR</strong>, <strong>no GDTF</strong>, <strong>no export</strong> of cues/presets/groups</li>
-            <li>OSC/MIDI in FREE/NOVA: 5-min trial with <strong>random execution delays</strong></li>
-            <li>Full protocol access requires NOVA+ or higher license</li>
-            <li>Port labeling inverted from external tools</li>
-            <li>Show files (.ONYX) are proprietary binary</li>
+            <li><strong>No MVR</strong>, <strong>no GDTF</strong>, no palette/preset export</li>
+            <li>Requires Onyx Manager running on the controller</li>
+            <li>No MIDI output (receive only)</li>
+            <li>OSC/MIDI in FREE/NOVA: 5-min trial with random delays</li>
+            <li>Telnet tier availability in FREE mode needs verification</li>
           </ul>
         </div>
         <div class="card" style="background: var(--bg-deep);">
           <h3>Recommended Mode</h3>
-          <p style="margin-top:4px;"><strong style="color: var(--onyx-red);">Trigger Mode via MSC</strong> &mdash; MSC is solid and bypasses OSC limitations. DMX sniffing compensates for missing feedback. CSV patch import is the only rig import path.</p>
+          <p style="margin-top:4px;"><strong style="color: var(--onyx-red);">Trigger Mode via Telnet + MSC</strong> &mdash; Telnet API bypasses OSC's 10-fader limit with direct cuelist control. Active state polling enables console-driven moment sync. MSC for MIDI-based triggering. DMX sniffing for look capture.</p>
         </div>
       </div>
     </div>
@@ -569,14 +568,21 @@
         <td class="gap-check">Yes (via /cmd)</td>
         <td class="gap-best">Excellent (dedicated addresses)</td>
         <td class="gap-check">Yes (10 playbacks)</td>
-        <td class="gap-partial">Limited (10 faders)</td>
+        <td class="gap-partial">Limited (10 faders via OSC)</td>
+      </tr>
+      <tr>
+        <td><strong>Telnet/TCP Control</strong></td>
+        <td class="gap-cross">No</td>
+        <td class="gap-cross">No</td>
+        <td class="gap-cross">No</td>
+        <td class="gap-best">Any cuelist, any cue (GTQ)</td>
       </tr>
       <tr>
         <td><strong>OSC Fader Control</strong></td>
         <td class="gap-check">Yes</td>
         <td class="gap-best">Yes + bidirectional</td>
         <td class="gap-check">Yes (10 playbacks)</td>
-        <td class="gap-check">Yes (10 faders)</td>
+        <td class="gap-check">Yes (SQL via Telnet)</td>
       </tr>
       <tr>
         <td><strong>OSC Feedback (Console &rarr; ShowUp)</strong></td>
@@ -639,14 +645,14 @@
         <td class="gap-check">Yes (Lua plugin)</td>
         <td class="gap-best">Yes (native, 3s delay)</td>
         <td class="gap-check">Yes (mqosc / feedback)</td>
-        <td class="gap-partial">DMX sniff only</td>
+        <td class="gap-check">Yes (SQL poll via Telnet)</td>
       </tr>
       <tr>
         <td><strong>Cue Execution Events</strong></td>
         <td class="gap-check">Yes (Lua plugin)</td>
         <td class="gap-best">Yes (native events)</td>
         <td class="gap-check">Yes (K macro)</td>
-        <td class="gap-cross">No</td>
+        <td class="gap-check">Yes (QLActive poll via Telnet)</td>
       </tr>
       <tr>
         <td><strong>MIDI Transmit (Console &rarr;)</strong></td>
@@ -660,7 +666,14 @@
         <td class="gap-check">Lua API, WebSocket</td>
         <td class="gap-partial">&mdash;</td>
         <td class="gap-best">CREP (binary UDP)</td>
-        <td class="gap-partial">Telnet/UDP, CITP</td>
+        <td class="gap-best">Telnet API (port 2323)</td>
+      </tr>
+      <tr>
+        <td><strong>Cuelist Names Readable</strong></td>
+        <td class="gap-check">Via XML export</td>
+        <td class="gap-check">Via OSC query</td>
+        <td class="gap-check">Via CSV export</td>
+        <td class="gap-best">QLList via Telnet (live)</td>
       </tr>
       <tr>
         <td><strong>Palette/Preset Export</strong></td>
@@ -697,10 +710,10 @@
         <div style="font-size: 14px; font-weight: 600;">ChamSys MQ</div>
         <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Built-in feedback. CREP protocol. MIDI transmit. Best free SW.</div>
       </div>
-      <div style="text-align: center; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-deep);">
-        <div style="font-size: 32px; margin-bottom: 8px; color: var(--onyx-red);">C+</div>
+      <div style="text-align: center; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-deep); border: 1px solid rgba(239,68,68,0.3);">
+        <div style="font-size: 32px; margin-bottom: 8px; color: var(--onyx-red);">B-</div>
         <div style="font-size: 14px; font-weight: 600;">Onyx</div>
-        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">MSC is strong. No exports. No MIDI out. DMX sniff as fallback.</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Telnet API transforms integration. Cuelist names + active polling. No MVR/GDTF.</div>
       </div>
     </div>
   </div>

@@ -244,57 +244,62 @@ light_console_sdk/
 
 ### Obsidian Onyx (NX4, NX2, NX1, NX Wing)
 
-**Connection:** OSC over UDP (via ShowCockpit driver, v4.4.1186+). Also: Telnet/UDP exterior triggers (v4.10+). MIDI/MSC input.
+**Connection:** Telnet API on port 2323 (primary, via Onyx Manager). Also: OSC over UDP (ShowCockpit driver), MIDI/MSC input, UDP commands.
 
-**What ShowUp can do:**
+**What ShowUp can do via Telnet API (port 2323):**
+- **Fire any cuelist:** `GQL {n}` — no 10-fader limit, works with any cuelist number
+- **Go to specific cue:** `GTQ {cuelist},{cue}` — direct cue access within any cuelist
+- **Release cuelist:** `RQL {n}` — release a specific cuelist
+- **Pause cuelist:** `PQL {n}` — pause playback
+- **Set cuelist level:** `SQL {n},{level}` — set fader level 0-255 for ANY cuelist
+- **Release all:** `RAQL` (all cuelists), `RAQLO` (cuelists + overrides), `RAQLDF` (dimmer first)
+- **Release all overrides:** `RAO`
+- **Clear programmer:** `CLRCLR`
+- **List all cuelists:** `QLList` — returns cuelist numbers and names (e.g., "00002 - House Lights")
+- **List active cuelists:** `QLActive` — returns which cuelists are currently running
+- **Check cuelist state:** `IsQLActive {n}` — boolean active check
+
+**What ShowUp can do via OSC (ShowCockpit driver):**
 - Control playback faders 1-10 and buttons 1-20 (Go/Pause/Release)
 - Set GrandMaster and FlashMaster levels
-- Trigger 50+ keyboard functions via OSC
-- Use MIDI Show Control (MSC) for cue triggers — Onyx's strongest integration point
-- Use MIDI notes and timecode
-- Share the network via sACN and Art-Net
-- Detect Onyx on the network via ArtPoll
-- Use CITP for media server thumbnail exchange
+- Trigger 50+ keyboard functions
+- Use MIDI Show Control (MSC) for cue triggers
 
-**Bidirectional feedback (severely limited):**
-- OSC feedback exists ONLY for: MainPlaybackButtons, MainPlaybackFaders, Programmer keys, F-Keys
-- All other functions (encoders, parameter buttons, bank changes, cuelist state, cue numbers) provide **zero feedback**
-- Onyx does NOT generate MIDI messages — it only receives. No MIDI note-on when cues fire.
-- **DMX sniffing is the primary feedback path** — ShowUp reads Onyx's sACN output to infer fixture state
+**Bidirectional feedback (Telnet API transforms this):**
+- **`QLActive` polling at 1Hz** — ShowUp knows which cuelists are active and can detect when new cues fire. This was previously listed as impossible.
+- **`QLList` on connect** — ShowUp imports all cuelist names to populate Console Quick Action buttons. Previously listed as "no export mechanism."
+- **`IsQLActive {n}`** — check specific cuelist state on demand
+- **OSC feedback** for main playback faders/buttons (via ShowCockpit)
+- **DMX sniffing via sACN** — read Onyx's output to capture fixture state (universal fallback)
 
-**Console fader → ShowUp parameter (workaround only):**
-- Dedicate a DMX channel as a "ShowUp control channel"
-- Onyx outputs it via sACN; ShowUp reads it via DMX input service
-- Crude but functional — the value range maps to a parameter
-- Main playback fader positions are readable via OSC (the only native option)
+**Console fader → ShowUp parameter:**
+- `SQL {n},{level}` read-back via polling — ShowUp can track cuelist levels
+- Main playback fader positions via OSC (ShowCockpit feedback)
+- DMX control channel convention as additional fallback (U16/Ch500)
 
-**Alternative protocols:**
-- **Telnet/UDP exterior triggers (v4.10+):** Basic cue triggering via network commands. Sparse documentation.
-- **CITP:** Bidirectional thumbnail exchange with media servers and visualizers. Patch import from CITP-compatible visualizers.
-- No REST API, WebSocket, HTTP endpoints, or documented web interface.
+**What the Telnet API does NOT solve:**
+- No MVR or GDTF support (still no rig data export)
+- No palette/preset data export (cuelist names only, not contents)
+- No per-fixture parameter feedback beyond DMX sniffing
+- Requires Onyx Manager running on the console
+- No MIDI output from Onyx (still receive-only)
+- Show files (.ONYX) remain proprietary binary
 
-**What ShowUp cannot do:**
-- Import MVR files (Onyx does not support MVR)
-- Import GDTF fixture definitions (not confirmed in current versions)
-- Use OSC/MIDI in FREE or NOVA mode (restricted to 5-minute trial with random execution delays)
-- Receive cue execution events or cue names
-- Export cuelist data, presets, or groups (no export mechanism at all)
-- Parse `.ONYX` show files (proprietary binary)
+**Software tier considerations:**
 
-**Software tier limitations:**
-
-| Tier | Universes | OSC/MIDI/TC | Notes |
-|------|-----------|-------------|-------|
-| FREE | 1 | 5-min trial, random delays | No hardware required |
-| NOVA | 4 | Trial only | Requires NX-DMX or NETRON |
-| NOVA+ | 4 | **Fully enabled** | Requires NX-Touch/K/P |
-| LIVE 8-128 | 8-128 | **Fully enabled** | License key required |
+| Tier | Universes | OSC/MIDI | Telnet API | Notes |
+|------|-----------|----------|------------|-------|
+| FREE | 1 | 5-min trial | **Needs verification** | Onyx Manager required |
+| NOVA | 4 | Trial only | **Needs verification** | Requires NX-DMX or NETRON |
+| NOVA+ | 4 | **Full** | **Full** | Requires NX-Touch/K/P |
+| LIVE 8-128 | 8-128 | **Full** | **Full** | License key required |
 
 **Special considerations:**
-- Port labeling is inverted: Onyx's "Output Port" = ShowUp's input and vice versa
-- MIDI/MSC is the strongest protocol path — OSC is too limited for rich integration
-- The lack of any export mechanism makes Onyx the hardest console to integrate with
-- ShowUp's DMX sniffing (sACN input) becomes essential here to compensate for missing APIs
+- The Telnet API (port 2323) bypasses ShowCockpit's limitations entirely — direct cuelist control with no 10-fader cap
+- Onyx Manager must be running on the controller for Telnet to work
+- Community-proven: [obsidian_onyx_python](https://github.com/jeffmikels/obsidian_onyx_python) and [Bitfocus Companion](https://github.com/bitfocus/companion-module-obsidiancontrol-onyx) both use this API successfully
+- Port labeling is inverted for OSC: Onyx's "Output Port" = ShowUp's input
+- Telnet + DMX sniffing together provide a workable integration despite Onyx's API limitations
 
 ---
 
@@ -304,30 +309,33 @@ light_console_sdk/
 
 | Feature | GrandMA3 | ETC Eos | ChamSys MQ | Onyx |
 |---------|:--------:|:-------:|:----------:|:----:|
-| OSC Output (ShowUp → Console) | Yes (via /cmd) | **Best** (dedicated addresses) | Yes (10 PBs built-in) | Limited (10 faders) |
+| OSC Output (ShowUp → Console) | Yes (via /cmd) | **Best** (dedicated addresses) | Yes (10 PBs built-in) | Limited (10 faders via OSC) |
+| Telnet/TCP Control | No | No | No | **Yes — any cuelist, any cue** |
 | OSC Input (Console → ShowUp) | **Lua plugin** | **Full native** | **Built-in feedback** | Main PBs only |
 | MIDI Show Control | No | **Yes** (32 sources) | Partial | **Yes** |
-| MIDI Transmit (Console → ShowUp) | Notes only | MSC + Notes | **Notes on playback** | **None** |
+| MIDI Transmit (Console → ShowUp) | Notes only | MSC + Notes | **Notes on playback** | None |
 | sACN Output | Yes | **Yes (inventor)** | Yes | Yes |
 | sACN Priority Merging | Yes | Yes | Yes | Yes |
 | Art-Net | Yes | Yes | Yes | Yes |
 | MVR Import/Export | **Yes (co-creator)** | Yes (import) | Yes (import) | **No** |
 | GDTF Fixtures | **Yes (co-creator)** | Yes (limited) | Yes (first adopter) | **No** |
-| Bidirectional Faders | **Yes (via plugin)** | **Yes (native)** | **Yes (built-in)** | Main PBs only |
-| Alternative Protocol | Lua API, WebSocket | — | **CREP (binary UDP)** | Telnet/UDP, CITP |
+| Bidirectional State | **Yes (via plugin)** | **Yes (native)** | **Yes (built-in)** | **Yes (Telnet polling)** |
+| Cuelist Names Readable | Via XML export | Via OSC query | Via CSV export | **Yes (QLList via Telnet)** |
+| Alternative Protocol | Lua API, WebSocket | — | **CREP (binary UDP)** | **Telnet API (port 2323)** |
 | Free Software | onPC (no DMX out) | Nomad (no DMX out) | **64 universes free** | 1 universe free |
 
 ### Integration Quality by Use Case
 
 | Use Case | GrandMA3 | ETC Eos | ChamSys MQ | Onyx |
 |----------|:--------:|:-------:|:----------:|:----:|
-| Fire cues from ShowUp moments | **Good** | **Excellent** | **Good** | Good (MSC) |
+| Fire cues from ShowUp moments | **Good** | **Excellent** | **Good** | **Good (Telnet GTQ)** |
 | Capture console looks (DMX) | **Good** | **Excellent** | **Good** | Good |
-| Console fader → ShowUp control | **Good (plugin)** | **Excellent (native)** | **Good (built-in)** | **Limited (DMX sniff)** |
-| Know when console fires a cue | **Good (plugin)** | **Excellent (events)** | **Good (K macro)** | **No** |
+| Console fader → ShowUp control | **Good (plugin)** | **Excellent (native)** | **Good (built-in)** | **Good (Telnet SQL poll)** |
+| Know when console fires a cue | **Good (plugin)** | **Excellent (events)** | **Good (K macro)** | **Good (QLActive poll)** |
+| Import cuelist names | Via XML export | Via OSC query | Via CSV export | **Yes (QLList via Telnet)** |
 | Import console's fixture patch | **Excellent** (MVR+GDTF) | Good (MVR+GDTF) | Good (MVR+GDTF+CSV) | **CSV only** |
 | Import console's color palettes | XML export | CSV export | **CSV palette export** | **No export** |
-| Console preset → ShowUp Look | DMX capture + XML | **OSC query + CSV** | DMX capture + CSV | DMX capture only |
+| Console preset → ShowUp Look | DMX capture + XML | **OSC query + CSV** | DMX capture + CSV | **DMX capture + Telnet** |
 | Auto-failover on disconnect | Good | Good | Good | Good |
 | Universe priority merging | Good | **Excellent** | Good | Good |
 
@@ -338,7 +346,7 @@ light_console_sdk/
 | GrandMA3 | **A-** | Lua plugin solves the feedback gap. Strong MVR/GDTF. Command-based OSC is flexible. WebSocket is a bonus target. |
 | ETC Eos | **A+** | Best integration of any console. Full bidirectional OSC with cue events, fader feedback, palette queries. |
 | ChamSys MQ | **B+** | Built-in feedback was undersold initially. CREP protocol adds a real bidirectional channel. MIDI transmit. Best free software. |
-| Onyx | **C+** | Fundamental platform limitations. No MIDI output, no exports, OSC licensing restrictions. MSC input is the saving grace. |
+| Onyx | **B-** | Telnet API (port 2323) transforms integration — cuelist names, active state polling, direct cue/fader control with no 10-fader cap. Still no MVR/GDTF/palette export. |
 
 ### Recommended Coexistence Mode by Console
 
@@ -347,7 +355,7 @@ light_console_sdk/
 | GrandMA3 | **Any mode (with plugin)** | Lua plugin makes all modes viable. Layer Mode is natural for touring where ShowUp adds reactive ambiance beneath the LD's programming. |
 | ETC Eos | **Any mode** | Eos's rich bidirectional OSC makes all modes work equally well. Trigger Mode is especially powerful because ShowUp can subscribe to cue execution events. |
 | ChamSys MQ | **Side by Side** or **Trigger** | Built-in playback feedback makes Trigger Mode more viable than initially assessed. Side by Side avoids the 10-playback limit. |
-| Onyx | **Trigger Mode** (via MSC) | Onyx's OSC is limited, but MSC is solid. MIDI triggers bypass OSC limitations. DMX sniffing fills the feedback gap for look capture. |
+| Onyx | **Trigger Mode** (via Telnet + MSC) | Telnet API bypasses OSC's 10-fader limit — direct cuelist control + active state polling. MSC for MIDI-based triggering. DMX sniffing for look capture. |
 
 ---
 

@@ -20,7 +20,8 @@ What happens at the console when a user does something in ShowUp.
 | ETC Eos | OSC | `/eos/cue/1/3/fire` | List/cue from binding. Dedicated address, no text parsing. |
 | ETC Eos | MSC | `F0 7F 01 02 01 01 33 00 31 F7` | MSC GO, Cue 3, List 1. SysEx format. |
 | ChamSys MQ | OSC | `/ch/playback/1/go` | Playback number from binding. Built-in for PB 1-10. |
-| Onyx | MSC | `F0 7F 01 02 01 01 33 F7` | MSC GO, Cue 3. Onyx's strongest trigger path. |
+| Onyx | Telnet | `GTQ 1,3\r\n` | Go to cuelist 1, cue 3. Any cuelist, any cue. Port 2323. |
+| Onyx | MSC | `F0 7F 01 02 01 01 33 F7` | MSC GO, Cue 3. Backup path via MIDI. |
 | Onyx | OSC | `/Mx/Cuelist/1/Go` | Via ShowCockpit driver. Limited to 10 cuelists. |
 
 **Execution modes per binding:**
@@ -40,7 +41,8 @@ What happens at the console when a user does something in ShowUp.
 | GrandMA3 | OSC | `/gma3/cmd,s,"Macro 1"` | Macro number from binding. |
 | ETC Eos | OSC | `/eos/macro/1/fire` | Dedicated macro fire address. |
 | ChamSys MQ | OSC | `/ch/macro/1/go` | Macro execute via built-in OSC. |
-| Onyx | MSC | `F0 7F 01 02 01 07 31 F7` | MSC FIRE macro. Or use OSC keyboard functions. |
+| Onyx | Telnet | `GQL {n}\r\n` | Fire cuelist containing the macro. Or use dedicated macro cuelist. |
+| Onyx | MSC | `F0 7F 01 02 01 07 31 F7` | MSC FIRE macro. Backup path via MIDI. |
 
 **Common macro → console pairings:**
 
@@ -63,7 +65,8 @@ What happens at the console when a user does something in ShowUp.
 | GrandMA3 | OSC | `/gma3/Page1/Fader{n},f,0.75` | Optional. Map a specific executor to mirror ShowUp's master. |
 | ETC Eos | OSC | `/eos/fader/1/{n},f,0.75` | Fader bank/index from binding. Float 0.0-1.0. |
 | ChamSys MQ | OSC | `/ch/playback/{n}/level,i,192` | Level as 0-255 int. |
-| Onyx | OSC | `/Playbacks/1/Fader,f,0.75` | MainPlaybackFader. Limited to 10. |
+| Onyx | Telnet | `SQL {n},{level}\r\n` | Set any cuelist level, 0-255. No fader limit. Port 2323. |
+| Onyx | OSC | `/Playbacks/1/Fader,f,0.75` | MainPlaybackFader via ShowCockpit. Limited to 10. |
 
 **When to mirror dimmer to console:** Only in Layer or Trigger mode where ShowUp wants the console to match its overall intensity. In Side by Side mode, dimmers are independent.
 
@@ -125,13 +128,13 @@ These are direct console commands that don't correspond to ShowUp looks or effec
 
 | Quick Action | GrandMA3 | ETC Eos | ChamSys MQ | Onyx |
 |-------------|----------|---------|------------|------|
-| **Fire Cue {n}** | `/gma3/cmd,s,"Go+ Cue {n}"` | `/eos/cue/1/{n}/fire` | `/ch/playback/1/go` | MSC GO Cue {n} |
-| **Next Cue** | `/gma3/cmd,s,"Go+"` | `/eos/cue/1/0/fire` | `/ch/playback/1/go` | MSC GO |
+| **Fire Cue {n}** | `/gma3/cmd,s,"Go+ Cue {n}"` | `/eos/cue/1/{n}/fire` | `/ch/playback/1/go` | Telnet: `GTQ 1,{n}` |
+| **Next Cue** | `/gma3/cmd,s,"Go+"` | `/eos/cue/1/0/fire` | `/ch/playback/1/go` | Telnet: `GQL 1` |
 | **Previous Cue** | `/gma3/cmd,s,"GoBack"` | `/eos/cue/1/back` | `/ch/playback/1/back` | MSC STOP + GO_BACK |
-| **Blackout** | `/gma3/cmd,s,"BlackOut"` | `/eos/cmd,s,"Blackout"` | `/ch/playback/0/release` | MSC ALL_OFF |
-| **Release All** | `/gma3/cmd,s,"Off Exec *"` | `/eos/cmd,s,"Release"` | `/ch/release/all` | `/Mx/ReleaseAll` |
+| **Blackout** | `/gma3/cmd,s,"BlackOut"` | `/eos/cmd,s,"Blackout"` | `/ch/playback/0/release` | Telnet: `RAQLDF` |
+| **Release All** | `/gma3/cmd,s,"Off Exec *"` | `/eos/cmd,s,"Release"` | `/ch/release/all` | Telnet: `RAQLO` |
 | **Console Macro {n}** | `/gma3/cmd,s,"Macro {n}"` | `/eos/macro/{n}/fire` | `/ch/macro/{n}/go` | MSC FIRE {n} |
-| **Set Fader {n}** | `/gma3/Page1/Fader{n},f,val` | `/eos/fader/1/{n},f,val` | `/ch/playback/{n}/level,i,val` | `/Playbacks/{n}/Fader,f,val` |
+| **Set Fader {n}** | `/gma3/Page1/Fader{n},f,val` | `/eos/fader/1/{n},f,val` | `/ch/playback/{n}/level,i,val` | Telnet: `SQL {n},{val}` |
 
 ---
 
@@ -150,7 +153,7 @@ What happens in ShowUp when the console does something.
 | GrandMA3 | Companion Lua Plugin | `/showup/cue/active,s,"Cue 3"` (plugin broadcasts active cue) |
 | ETC Eos | Native OSC event | `/eos/out/event/cue/1/3/fire` (automatic on cue execution) |
 | ChamSys MQ | K macro in cue | `K/showup/cue/fired,3` (added to cue's macro field) |
-| Onyx | Not available | No mechanism. ShowUp cannot know when Onyx fires a cue. |
+| Onyx | Telnet `QLActive` polling | Poll at 1Hz; detect when cuelist becomes active/inactive. Returns cuelist numbers + names. |
 
 **What ShowUp does with this information:**
 1. Look up which ShowUp moment maps to this console cue (reverse trigger binding lookup)
@@ -172,7 +175,8 @@ What happens in ShowUp when the console does something.
 | ETC Eos | Native OSC output | `/eos/out/fader/1/1,f,0.75` | ~100ms (10Hz on port 3037) |
 | ChamSys MQ | `/feedback/pb+exec` | Auto-transmitted on change | Near-instant |
 | ChamSys MQ | `mqosc` personality | OSC on DMX value change | 1 DMX frame (~22ms) |
-| Onyx | Main PB faders only | OSC via ShowCockpit | Near-instant for main PBs |
+| Onyx | Telnet `SQL` polling | Poll `IsQLActive` + level at 1Hz | ~1s latency |
+| Onyx | Main PB faders (OSC) | OSC via ShowCockpit | Near-instant for main PBs |
 | Any console | DMX sniffing fallback | sACN input, U16/Ch500 | 1 DMX frame (~22ms) |
 
 **Default parameter mappings (user-configurable):**
@@ -268,12 +272,19 @@ Companion Plugin: active page/executor layout
   → ShowUp mirrors the executor labels as Quick Action buttons
 ```
 
-**From Onyx (via DMX capture only):**
+**From Onyx (via Telnet API):**
 ```
-No data import possible.
-User manually creates Quick Action buttons:
-  [Cue 1] [Cue 5] [Blackout] [House Lights]
-Each mapped to an MSC command.
+Telnet: QLList
+  → "00001 - Main Show"
+  → "00002 - House Lights"
+  → "00005 - Dance Floor"
+  → "00008 - Specials"
+  → ShowUp creates Quick Action buttons:
+    [Main Show] [House Lights] [Dance Floor] [Specials]
+    Each fires GQL {n} via Telnet on tap.
+
+Telnet: QLActive (polled at 1Hz)
+  → ShowUp highlights active cuelists in the Quick Actions row
 ```
 
 ---
@@ -372,15 +383,18 @@ Can a console's presets/cues be fully translated into ShowUp's Looks/Moments/Mac
 5. Map playback order → moment sequence
 ```
 
-**Onyx → ShowUp:**
+**Onyx → ShowUp (via Telnet + DMX capture):**
 ```
-1. No palette export available
-2. For each cuelist cue:
-   a. Fire via MSC GO Cue {n}
+1. Connect to Onyx Manager Telnet (port 2323)
+2. QLList → get all cuelist names and numbers
+3. For each cuelist:
+   a. GQL {n} → fire cuelist via Telnet
    b. Capture DMX output via sACN
    c. Create ShowUp Look from captured DMX
-3. No MVR — manual fixture patching or CSV import
-4. Map cuelist order → moment sequence manually
+   d. Label the look with the cuelist name from QLList
+4. No MVR — manual fixture patching or CSV import
+5. Map cuelist order → moment sequence using imported names
+6. QLActive polling → auto-detect when LD changes cuelists
 ```
 
 ### What Can't Be Translated
