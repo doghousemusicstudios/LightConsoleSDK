@@ -20,9 +20,9 @@ What happens at the console when a user does something in ShowUp.
 | ETC Eos | OSC | `/eos/cue/1/3/fire` | List/cue from binding. Dedicated address, no text parsing. |
 | ETC Eos | MSC | `F0 7F 01 02 01 01 33 00 31 F7` | MSC GO, Cue 3, List 1. SysEx format. |
 | ChamSys MQ | OSC | `/ch/playback/1/go` | Playback number from binding. Built-in for PB 1-10. |
-| Onyx | Telnet | `GTQ 1,3\r\n` | Go to cuelist 1, cue 3. Any cuelist, any cue. Port 2323. |
-| Onyx | MSC | `F0 7F 01 02 01 01 33 F7` | MSC GO, Cue 3. Backup path via MIDI. |
-| Onyx | OSC | `/Mx/Cuelist/1/Go` | Via ShowCockpit driver. Limited to 10 cuelists. |
+| Onyx | Telnet | `GTQ 1,3\r\n` | **Primary.** Go to cuelist 1, cue 3. Any cuelist, any cue. Port 2323. |
+| Onyx | MSC | `F0 7F 01 02 01 01 33 F7` | Backup. MSC GO, Cue 3. Via MIDI. |
+| Onyx | OSC | `/Mx/Cuelist/1/Go` | Last resort. Via ShowCockpit. Limited to 10 cuelists. |
 
 **Execution modes per binding:**
 - `showupOnly` — ShowUp applies its look; no console command sent
@@ -218,7 +218,7 @@ What happens in ShowUp when the console does something.
 | ETC Eos | CSV export (File > Export) | Cue list structure, channel values per cue, metadata |
 | ETC Eos | OSC query | `/eos/out/get/cp/{n}` returns palette name + channels |
 | ChamSys MQ | CSV palette export | Raw color/position/beam values per palette entry |
-| Onyx | None | No export mechanism. DMX capture is the only path. |
+| Onyx | Telnet `QLList` | Cuelist names and numbers (not palette data or fixture values) |
 
 **How this populates ShowUp:**
 - Color palette entries → ShowUp's custom palette colors (6 slots + extended)

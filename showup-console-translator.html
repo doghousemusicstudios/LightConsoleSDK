@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShowUp Console Translator</title>
+<style>
+  :root {
+    --bg-deepest: #06060f;
+    --bg-deep: #0d0d1a;
+    --bg-surface: #14142a;
+    --bg-elevated: #1c1c3a;
+    --bg-hover: #24244a;
+    --primary: #7c3aed;
+    --primary-glow: rgba(124, 58, 237, 0.3);
+    --primary-soft: rgba(124, 58, 237, 0.15);
+    --console-blue: #3b82f6;
+    --console-glow: rgba(59, 130, 246, 0.3);
+    --shared-green: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --success: #10b981;
+    --ma-gold: #d4a843;
+    --etc-teal: #22d3ee;
+    --chamsys-orange: #f97316;
+    --onyx-red: #ef4444;
+    --text-primary: #e5e7eb;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --border: rgba(255,255,255,0.06);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-lg: 16px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+    background: var(--bg-deepest); color: var(--text-primary); line-height: 1.6;
+  }
+  code {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+    background: var(--bg-deep); padding: 2px 6px; border-radius: 4px;
+    color: var(--shared-green);
+  }
+
+  /* Hero */
+  .hero { text-align: center; padding: 60px 24px 40px; position: relative; }
+  .hero::before {
+    content: ''; position: absolute; top: -80px; left: 50%; transform: translateX(-50%);
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(59,130,246,0.15) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero h1 {
+    font-size: 40px; font-weight: 800; letter-spacing: -1px;
+    background: linear-gradient(135deg, var(--primary), var(--console-blue));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 8px; position: relative;
+  }
+  .hero .subtitle { font-size: 16px; color: var(--text-secondary); margin-bottom: 24px; }
+
+  /* Direction Toggle */
+  .direction-toggle {
+    display: flex; justify-content: center; gap: 4px; margin-bottom: 32px;
+    background: var(--bg-deep); border-radius: var(--radius); padding: 4px;
+    display: inline-flex;
+  }
+  .dir-btn {
+    padding: 10px 24px; border-radius: var(--radius-sm); font-size: 14px;
+    font-weight: 600; cursor: pointer; border: none; transition: all 0.2s;
+    background: transparent; color: var(--text-muted);
+  }
+  .dir-btn.active { background: var(--primary); color: white; }
+  .dir-btn:hover:not(.active) { color: var(--text-secondary); background: var(--bg-surface); }
+
+  /* Nav */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(13,13,26,0.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: center; gap: 2px; padding: 6px 16px;
+    flex-wrap: wrap;
+  }
+  .nav-btn {
+    padding: 7px 14px; border-radius: var(--radius-sm); font-size: 12px;
+    font-weight: 500; color: var(--text-muted); cursor: pointer; border: none;
+    background: none; transition: all 0.2s; white-space: nowrap;
+  }
+  .nav-btn:hover { color: var(--text-secondary); background: var(--bg-surface); }
+  .nav-btn.active { color: var(--text-primary); background: var(--primary-soft); }
+
+  /* Content */
+  .content { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+  .panel { display: none; animation: fadeIn 0.3s ease; }
+  .panel.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Section headers */
+  .section-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .section-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 24px; }
+
+  /* Cards */
+  .card {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px; margin-bottom: 14px;
+  }
+  .card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .card p { font-size: 13px; color: var(--text-secondary); }
+
+  /* Console command cards */
+  .cmd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin: 16px 0; }
+  .cmd-card {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 14px; transition: all 0.2s;
+  }
+  .cmd-card:hover { border-color: rgba(255,255,255,0.12); }
+  .cmd-console {
+    font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 6px; display: flex; align-items: center; gap: 6px;
+  }
+  .cmd-console .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .cmd-console .dot.ma { background: var(--ma-gold); }
+  .cmd-console .dot.etc { background: var(--etc-teal); }
+  .cmd-console .dot.mq { background: var(--chamsys-orange); }
+  .cmd-console .dot.onyx { background: var(--onyx-red); }
+  .cmd-protocol {
+    font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 600;
+    display: inline-block; margin-bottom: 6px;
+  }
+  .cmd-protocol.osc { background: rgba(124,58,237,0.2); color: var(--primary); }
+  .cmd-protocol.telnet { background: rgba(239,68,68,0.2); color: var(--onyx-red); }
+  .cmd-protocol.msc { background: rgba(245,158,11,0.2); color: var(--warning); }
+  .cmd-protocol.lua { background: rgba(212,168,67,0.2); color: var(--ma-gold); }
+  .cmd-protocol.crep { background: rgba(249,115,22,0.2); color: var(--chamsys-orange); }
+  .cmd-protocol.sacn { background: rgba(16,185,129,0.2); color: var(--shared-green); }
+  .cmd-code {
+    font-family: 'SF Mono', monospace; font-size: 12px; color: var(--shared-green);
+    background: var(--bg-deep); padding: 6px 10px; border-radius: 6px;
+    display: block; margin-top: 6px; word-break: break-all;
+  }
+  .cmd-note { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+  .cmd-primary { border-left: 3px solid var(--shared-green); }
+
+  /* Action header */
+  .action-header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+    padding-bottom: 14px; border-bottom: 1px solid var(--border);
+  }
+  .action-icon {
+    width: 44px; height: 44px; border-radius: 12px; display: flex;
+    align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;
+  }
+  .action-icon.showup { background: var(--primary-soft); border: 1px solid rgba(124,58,237,0.3); }
+  .action-icon.console { background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); }
+  .action-icon.bridge { background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.3); }
+  .action-label h3 { font-size: 16px; font-weight: 700; margin-bottom: 0; }
+  .action-label p { font-size: 12px; color: var(--text-muted); }
+
+  /* Flow visualization */
+  .flow-arrow {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 16px; font-size: 13px; color: var(--text-muted);
+  }
+  .flow-arrow .arrow { font-size: 20px; color: var(--shared-green); }
+
+  /* Execution modes */
+  .exec-modes { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+  .exec-mode {
+    font-size: 11px; padding: 4px 10px; border-radius: 6px;
+    background: var(--bg-deep); color: var(--text-secondary); border: 1px solid var(--border);
+  }
+  .exec-mode.recommended { border-color: var(--primary); color: var(--primary); }
+
+  /* Translation matrix */
+  .matrix-table {
+    width: 100%; border-collapse: collapse; font-size: 12px; margin: 16px 0;
+  }
+  .matrix-table th {
+    text-align: left; padding: 10px 14px; background: var(--bg-deep);
+    color: var(--text-muted); font-size: 10px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border);
+  }
+  .matrix-table td {
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    color: var(--text-secondary); vertical-align: top;
+  }
+  .matrix-table tr:hover td { background: rgba(255,255,255,0.02); }
+  .fidelity-high { color: var(--success); font-weight: 600; }
+  .fidelity-medium { color: var(--warning); font-weight: 600; }
+  .fidelity-low { color: var(--danger); font-weight: 600; }
+
+  /* Console filter */
+  .console-filter {
+    display: flex; gap: 6px; margin-bottom: 20px; flex-wrap: wrap;
+  }
+  .filter-btn {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 500;
+    cursor: pointer; border: 1px solid var(--border); background: var(--bg-surface);
+    color: var(--text-muted); transition: all 0.2s;
+  }
+  .filter-btn:hover { border-color: var(--text-muted); }
+  .filter-btn.active { border-color: var(--primary); color: var(--text-primary); background: var(--primary-soft); }
+  .filter-btn.all.active { border-color: var(--shared-green); background: rgba(16,185,129,0.1); }
+
+  /* Perform layout mockup */
+  .perform-mockup {
+    background: var(--bg-deep); border-radius: var(--radius); padding: 16px;
+    font-size: 12px; margin: 16px 0;
+  }
+  .mockup-row {
+    display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+    border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .mockup-row:last-child { border-bottom: none; }
+  .mockup-label {
+    font-size: 11px; font-weight: 600; color: var(--text-muted);
+    min-width: 80px; text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .mockup-btn {
+    padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 500;
+    border: 1px solid var(--border); cursor: default;
+  }
+  .mockup-btn.showup { background: var(--primary-soft); color: var(--primary); border-color: rgba(124,58,237,0.3); }
+  .mockup-btn.showup.active { background: var(--primary); color: white; box-shadow: 0 0 12px var(--primary-glow); }
+  .mockup-btn.console { background: rgba(59,130,246,0.1); color: var(--console-blue); border-color: rgba(59,130,246,0.3); }
+  .mockup-btn.captured { background: rgba(16,185,129,0.1); color: var(--shared-green); border-color: rgba(16,185,129,0.3); }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 28px; }
+    .cmd-grid { grid-template-columns: 1fr; }
+    .nav { gap: 1px; }
+    .nav-btn { padding: 6px 10px; font-size: 11px; }
+  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<div class="hero">
+  <h1>ShowUp Console Translator</h1>
+  <p class="subtitle">Every ShowUp action mapped to every console. Every console event mapped back.</p>
+  <div class="direction-toggle">
+    <button class="dir-btn active" onclick="setDirection('outbound')">ShowUp &rarr; Console</button>
+    <button class="dir-btn" onclick="setDirection('inbound')">Console &rarr; ShowUp</button>
+    <button class="dir-btn" onclick="setDirection('translate')">Preset Translation</button>
+  </div>
+</div>
+
+<!-- Nav -->
+<div class="nav" id="mainNav"></div>
+
+<!-- Content -->
+<div class="content">
+
+  <!-- Console Filter -->
+  <div class="console-filter">
+    <button class="filter-btn all active" onclick="filterConsole('all')">All Consoles</button>
+    <button class="filter-btn" onclick="filterConsole('ma')" style="border-color: rgba(212,168,67,0.3);">GrandMA3</button>
+    <button class="filter-btn" onclick="filterConsole('etc')" style="border-color: rgba(34,211,238,0.3);">ETC Eos</button>
+    <button class="filter-btn" onclick="filterConsole('mq')" style="border-color: rgba(249,115,22,0.3);">ChamSys MQ</button>
+    <button class="filter-btn" onclick="filterConsole('onyx')" style="border-color: rgba(239,68,68,0.3);">Onyx</button>
+  </div>
+
+  <!-- ═══════════ OUTBOUND PANELS ═══════════ -->
+
+  <div class="panel" id="panel-moment" data-dir="outbound">
+    <div class="action-header">
+      <div class="action-icon showup">&#x1F3B5;</div>
+      <div class="action-label"><h3>Moment Activation</h3><p>User taps a moment card (e.g., "Chorus") in Perform</p></div>
+    </div>
+    <div class="cmd-grid">
+      <div class="cmd-card" data-console="ma">
+        <div class="cmd-console"><span class="dot ma"></span> GrandMA3</div>
+        <span class="cmd-protocol osc">OSC</span>
+        <div class="cmd-code">/gma3/cmd,s,"Go+ Cue 3"</div>
+        <div class="cmd-note">Text command via /cmd. Cue number from trigger binding.</div>
+      </div>
+      <div class="cmd-card" data-console="etc">
+        <div class="cmd-console"><span class="dot etc"></span> ETC Eos</div>
+        <span class="cmd-protocol osc">OSC</span>
+        <div class="cmd-code">/eos/cue/1/3/fire</div>
+        <div class="cmd-note">Dedicated address. List/cue from binding. No text parsing.</div>
+      </div>
+      <div class="cmd-card" data-console="etc">
+        <div class="cmd-console"><span class="dot etc"></span> ETC Eos</div>
+        <span class="cmd-protocol msc">MSC</span>
+        <div class="cmd-code">F0 7F 01 02 01 01 33 00 31 F7</div>
+        <div class="cmd-note">MSC GO, Cue 3, List 1. SysEx format.</div>
+      </div>
+      <div class="cmd-card" data-console="mq">
+        <div class="cmd-console"><span class="dot mq"></span> ChamSys MQ</div>
+        <span class="cmd-protocol osc">OSC</span>
+        <div class="cmd-code">/ch/playback/1/go</div>
+        <div class="cmd-note">Playback number from binding. Built-in for PB 1-10.</div>
+      </div>
+      <div class="cmd-card cmd-primary" data-console="onyx">
+        <div class="cmd-console"><span class="dot onyx"></span> Onyx</div>
+        <span class="cmd-protocol telnet">TELNET</span>
+        <div class="cmd-code">GTQ 1,3\r\n</div>
+        <div class="cmd-note"><strong>Primary.</strong> Go to cuelist 1, cue 3. Any cuelist, any cue. Port 2323.</div>
+      </div>
+      <div class="cmd-card" data-console="onyx">
+        <div class="cmd-console"><span class="dot onyx"></span> Onyx</div>
+        <span class="cmd-protocol msc">MSC</span>
+        <div class="cmd-code">F0 7F 01 02 01 01 33 F7</div>
+        <div class="cmd-note">Backup. MSC GO, Cue 3. Via MIDI.</div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Execution Modes</h3>
+      <div class="exec-modes">
+        <span class="exec-mode recommended">both (recommended)</span>
+        <span class="exec-mode">showupOnly</span>
+        <span class="exec-mode">consoleOnly</span>
+        <span class="exec-mode">sequential</span>
+      </div>
+      <p><strong>both:</strong> ShowUp applies its look AND fires the console command simultaneously. <strong>sequential:</strong> ShowUp first, then console (or reverse), with configurable delay.</p>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-macro" data-dir="outbound">
+    <div class="action-header">
+      <div class="action-icon showup">&#x26A1;</div>
+      <div class="action-label"><h3>Macro Fire</h3><p>User taps a macro button (e.g., "Big Finish") in Perform</p></div>
+    </div>
+    <div class="cmd-grid">
+      <div class="cmd-card" data-console="ma">
+        <div class="cmd-console"><span class="dot ma"></span> GrandMA3</div>
+        <span class="cmd-protocol osc">OSC</span>
+        <div class="cmd-code">/gma3/cmd,s,"Macro 1"</div>
+      </div>
+      <div class="cmd-card" data-console="etc">
+        <div class="cmd-console"><span class="dot etc"></span> ETC Eos</div>
+        <span class="cmd-protocol osc">OSC</span>
+        <div class="cmd-code">/eos/macro/1/fire</div>
+      </div>
+      <div class="cmd-card" data-console="mq">
+        <div class="cmd-console"><span class="dot mq"></span> ChamSys MQ</div>
+        <span class="cmd-protocol osc">OSC</span>
+        <div class="cmd-code">/ch/macro/1/go</div>
+      </div>
+      <div class="cmd-card cmd-primary" data-console="onyx">
+        <div class="cmd-console"><span class="dot onyx"></span> Onyx</div>
+        <span class="cmd-protocol telnet">TELNET</span>
+        <div class="cmd-code">GQL {n}\r\n</div>
+        <div class="cmd-note">Fire cuelist containing the macro.</div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Common Pairings</h3>
+      <table class="matrix-table">
+        <thead><tr><th>ShowUp Macro</th><th>Console Action</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Lift</strong></td><td>Console cue: brighter wash</td><td>Energy increase across both</td></tr>
+          <tr><td><strong>Big Finish</strong></td><td>Console: blackout / strobe cue</td><td>ShowUp strobes + console goes dark</td></tr>
+          <tr><td><strong>Reset Room</strong></td><td>Console: house lights up</td><td>ShowUp ambient + console work lights</td></tr>
+          <tr><td><strong>Pull Back</strong></td><td>Console cue: dim to 50%</td><td>Coordinated energy decrease</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-dimmer" data-dir="outbound">
+    <div class="action-header">
+      <div class="action-icon showup">&#x1F506;</div>
+      <div class="action-label"><h3>Master Dimmer Change</h3><p>User adjusts the master dimmer slider</p></div>
+    </div>
+    <div class="cmd-grid">
+      <div class="cmd-card" data-console="ma">
+        <div class="cmd-console"><span class="dot ma"></span> GrandMA3</div>
+        <span class="cmd-protocol osc">OSC</span>
+        <div class="cmd-code">/gma3/Page1/Fader{n},f,0.75</div>
+        <div class="cmd-note">Map specific executor to mirror ShowUp's master.</div>
+      </div>
+      <div class="cmd-card" data-console="etc">
+        <div class="cmd-console"><span class="dot etc"></span> ETC Eos</div>
+        <span class="cmd-protocol osc">OSC</span>
+        <div class="cmd-code">/eos/fader/1/{n},f,0.75</div>
+        <div class="cmd-note">Fader bank/index from binding. Float 0.0-1.0.</div>
+      </div>
+      <div class="cmd-card" data-console="mq">
+        <div class="cmd-console"><span class="dot mq"></span> ChamSys MQ</div>
+        <span class="cmd-protocol osc">OSC</span>
+        <div class="cmd-code">/ch/playback/{n}/level,i,192</div>
+        <div class="cmd-note">Level as 0-255 int.</div>
+      </div>
+      <div class="cmd-card cmd-primary" data-console="onyx">
+        <div class="cmd-console"><span class="dot onyx"></span> Onyx</div>
+        <span class="cmd-protocol telnet">TELNET</span>
+        <div class="cmd-code">SQL {n},{level}\r\n</div>
+        <div class="cmd-note"><strong>Primary.</strong> Any cuelist, 0-255. No fader limit.</div>
+      </div>
+    </div>
+    <p style="font-size: 12px; color: var(--text-muted); margin-top: 12px;">Only sent in Layer or Trigger mode. In Side by Side, dimmers are independent.</p>
+  </div>
+
+  <div class="panel" id="panel-quickaction" data-dir="outbound">
+    <div class="action-header">
+      <div class="action-icon console">&#x1F3AE;</div>
+      <div class="action-label"><h3>Console Quick Actions</h3><p>User taps a console shortcut button in the "Console" section of Perform</p></div>
+    </div>
+    <table class="matrix-table">
+      <thead><tr><th>Quick Action</th><th>GrandMA3</th><th>ETC Eos</th><th>ChamSys MQ</th><th>Onyx</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Fire Cue {n}</strong></td><td><code>/gma3/cmd "Go+ Cue {n}"</code></td><td><code>/eos/cue/1/{n}/fire</code></td><td><code>/ch/playback/1/go</code></td><td><code>GTQ 1,{n}</code></td></tr>
+        <tr><td><strong>Next Cue</strong></td><td><code>/gma3/cmd "Go+"</code></td><td><code>/eos/cue/1/0/fire</code></td><td><code>/ch/playback/1/go</code></td><td><code>GQL 1</code></td></tr>
+        <tr><td><strong>Blackout</strong></td><td><code>/gma3/cmd "BlackOut"</code></td><td><code>/eos/cmd "Blackout"</code></td><td><code>/ch/playback/0/release</code></td><td><code>RAQLDF</code></td></tr>
+        <tr><td><strong>Release All</strong></td><td><code>/gma3/cmd "Off Exec *"</code></td><td><code>/eos/cmd "Release"</code></td><td><code>/ch/release/all</code></td><td><code>RAQLO</code></td></tr>
+        <tr><td><strong>Set Fader</strong></td><td><code>/gma3/Page1/Fader{n},f,val</code></td><td><code>/eos/fader/1/{n},f,val</code></td><td><code>/ch/playback/{n}/level</code></td><td><code>SQL {n},{val}</code></td></tr>
+      </tbody>
+    </table>
+    <div class="card" style="margin-top: 16px;">
+      <h3>Perform Screen Layout</h3>
+      <div class="perform-mockup">
+        <div class="mockup-row">
+          <span class="mockup-label">Moments</span>
+          <span class="mockup-btn showup active">Intro</span>
+          <span class="mockup-btn showup">Verse</span>
+          <span class="mockup-btn showup">Chorus</span>
+          <span class="mockup-btn showup">Drop</span>
+          <span class="mockup-btn showup">Outro</span>
+        </div>
+        <div class="mockup-row">
+          <span class="mockup-label">Console</span>
+          <span class="mockup-btn console">Cue 1: Wash</span>
+          <span class="mockup-btn console">Cue 5: Color</span>
+          <span class="mockup-btn console">Blackout</span>
+          <span class="mockup-btn console">Release All</span>
+        </div>
+        <div class="mockup-row">
+          <span class="mockup-label">Macros</span>
+          <span class="mockup-btn showup">Lift</span>
+          <span class="mockup-btn showup">Pull Back</span>
+          <span class="mockup-btn showup">Big Finish</span>
+          <span class="mockup-btn showup">Reset Room</span>
+        </div>
+        <div class="mockup-row">
+          <span class="mockup-label">Captured</span>
+          <span class="mockup-btn captured">Warm Wash</span>
+          <span class="mockup-btn captured">Blue Back</span>
+          <span class="mockup-btn captured">Spotlight</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ INBOUND PANELS ═══════════ -->
+
+  <div class="panel" id="panel-cue-event" data-dir="inbound">
+    <div class="action-header">
+      <div class="action-icon console">&#x1F3AC;</div>
+      <div class="action-label"><h3>Console Fires a Cue</h3><p>ShowUp detects the event and auto-advances its moment</p></div>
+    </div>
+    <div class="cmd-grid">
+      <div class="cmd-card" data-console="ma">
+        <div class="cmd-console"><span class="dot ma"></span> GrandMA3</div>
+        <span class="cmd-protocol lua">LUA PLUGIN</span>
+        <div class="cmd-code">/showup/cue/active,s,"Cue 3"</div>
+        <div class="cmd-note">Companion Plugin polls executor state at ~10Hz, broadcasts active cue.</div>
+      </div>
+      <div class="cmd-card cmd-primary" data-console="etc">
+        <div class="cmd-console"><span class="dot etc"></span> ETC Eos</div>
+        <span class="cmd-protocol osc">OSC NATIVE</span>
+        <div class="cmd-code">/eos/out/event/cue/1/3/fire</div>
+        <div class="cmd-note"><strong>Best.</strong> Automatic on cue execution. No plugin needed.</div>
+      </div>
+      <div class="cmd-card" data-console="mq">
+        <div class="cmd-console"><span class="dot mq"></span> ChamSys MQ</div>
+        <span class="cmd-protocol osc">K MACRO</span>
+        <div class="cmd-code">K/showup/cue/fired,3</div>
+        <div class="cmd-note">Added to cue's macro field. Fires OSC when that specific cue executes.</div>
+      </div>
+      <div class="cmd-card" data-console="onyx">
+        <div class="cmd-console"><span class="dot onyx"></span> Onyx</div>
+        <span class="cmd-protocol telnet">TELNET POLL</span>
+        <div class="cmd-code">QLActive\r\n</div>
+        <div class="cmd-note">Poll at 1Hz. Detect when cuelist becomes active/inactive. Returns names.</div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>What ShowUp Does</h3>
+      <p>1. Reverse-lookup: which ShowUp moment maps to this console cue?<br>
+      2. Activate that moment &mdash; apply its look, effects, energy level<br>
+      3. Update Perform screen to highlight the active moment<br>
+      4. If no mapping exists, log the event but take no action</p>
+      <p style="margin-top: 8px; color: var(--shared-green); font-weight: 600; font-size: 12px;">This enables "console-driven show flow" &mdash; the LD runs cues; ShowUp follows automatically.</p>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-fader-in" data-dir="inbound">
+    <div class="action-header">
+      <div class="action-icon console">&#x1F39A;</div>
+      <div class="action-label"><h3>Console Fader &rarr; ShowUp Parameter</h3><p>LD controls ShowUp from their own desk</p></div>
+    </div>
+    <div class="cmd-grid">
+      <div class="cmd-card" data-console="ma">
+        <div class="cmd-console"><span class="dot ma"></span> GrandMA3</div>
+        <span class="cmd-protocol lua">LUA PLUGIN</span>
+        <div class="cmd-code">/showup/fader/201,f,0.75</div>
+        <div class="cmd-note">~100ms latency (10Hz poll). Companion Plugin required.</div>
+      </div>
+      <div class="cmd-card cmd-primary" data-console="etc">
+        <div class="cmd-console"><span class="dot etc"></span> ETC Eos</div>
+        <span class="cmd-protocol osc">OSC NATIVE</span>
+        <div class="cmd-code">/eos/out/fader/1/1,f,0.75</div>
+        <div class="cmd-note"><strong>Best.</strong> ~100ms (10Hz on port 3037). 3s debounce after OSC-driven moves.</div>
+      </div>
+      <div class="cmd-card" data-console="mq">
+        <div class="cmd-console"><span class="dot mq"></span> ChamSys MQ</div>
+        <span class="cmd-protocol osc">BUILT-IN</span>
+        <div class="cmd-code">/feedback/pb+exec</div>
+        <div class="cmd-note">Auto-transmitted on change. Near-instant.</div>
+      </div>
+      <div class="cmd-card" data-console="mq">
+        <div class="cmd-console"><span class="dot mq"></span> ChamSys MQ</div>
+        <span class="cmd-protocol osc">mqosc</span>
+        <div class="cmd-code">mqosc personality on fader</div>
+        <div class="cmd-note">1-ch "fixture" that transmits OSC on DMX value change. ~22ms.</div>
+      </div>
+      <div class="cmd-card" data-console="onyx">
+        <div class="cmd-console"><span class="dot onyx"></span> Onyx</div>
+        <span class="cmd-protocol telnet">TELNET POLL</span>
+        <div class="cmd-code">IsQLActive + SQL poll</div>
+        <div class="cmd-note">~1s latency. Poll cuelist levels at 1Hz.</div>
+      </div>
+      <div class="cmd-card" data-console="all">
+        <div class="cmd-console"><span class="dot" style="background: var(--shared-green);"></span> Any Console</div>
+        <span class="cmd-protocol sacn">DMX SNIFF</span>
+        <div class="cmd-code">sACN input, U16/Ch500-504</div>
+        <div class="cmd-note">Universal fallback. Dedicate DMX channels as control channels. ~22ms.</div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Default Parameter Mappings</h3>
+      <table class="matrix-table">
+        <thead><tr><th>Console Fader</th><th>ShowUp Parameter</th><th>Range</th></tr></thead>
+        <tbody>
+          <tr><td>Fader 1 (designated)</td><td><strong>Master Dimmer</strong></td><td>0.0 &rarr; 1.0</td></tr>
+          <tr><td>Fader 2</td><td>Color Speed</td><td>0.0 &rarr; 1.0</td></tr>
+          <tr><td>Fader 3</td><td>Movement Speed</td><td>0.0 &rarr; 1.0</td></tr>
+          <tr><td>Fader 4</td><td>Effect Intensity / Excitement</td><td>0.0 &rarr; 1.0</td></tr>
+          <tr><td>Fader 5</td><td>Warmth</td><td>0.0 &rarr; 1.0</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top: 8px;">Override badge shows in ShowUp's UI. Auto-releases after 10 seconds of no input.</p>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-import" data-dir="inbound">
+    <div class="action-header">
+      <div class="action-icon bridge">&#x1F4E5;</div>
+      <div class="action-label"><h3>Console Data Import</h3><p>One-time import of palette data, cuelist names, and groups</p></div>
+    </div>
+    <div class="cmd-grid">
+      <div class="cmd-card" data-console="ma">
+        <div class="cmd-console"><span class="dot ma"></span> GrandMA3</div>
+        <span class="cmd-protocol lua">XML EXPORT</span>
+        <div class="cmd-code">XML from console export menu</div>
+        <div class="cmd-note">Cue names, timing data, partial fixture values. Manual export from console.</div>
+      </div>
+      <div class="cmd-card cmd-primary" data-console="etc">
+        <div class="cmd-console"><span class="dot etc"></span> ETC Eos</div>
+        <span class="cmd-protocol osc">OSC QUERY</span>
+        <div class="cmd-code">/eos/out/get/cp/{n}, /eos/out/get/cuelist/{n}</div>
+        <div class="cmd-note"><strong>Best.</strong> Live query for palettes, cue lists, groups. No file export needed.</div>
+      </div>
+      <div class="cmd-card" data-console="etc">
+        <div class="cmd-console"><span class="dot etc"></span> ETC Eos</div>
+        <span class="cmd-protocol osc">CSV</span>
+        <div class="cmd-code">File &gt; Export &gt; CSV</div>
+        <div class="cmd-note">Cue list structure, channel values per cue, metadata.</div>
+      </div>
+      <div class="cmd-card" data-console="mq">
+        <div class="cmd-console"><span class="dot mq"></span> ChamSys MQ</div>
+        <span class="cmd-protocol crep">CSV</span>
+        <div class="cmd-code">CSV palette export</div>
+        <div class="cmd-note">Raw color/position/beam values. Best palette export of any console.</div>
+      </div>
+      <div class="cmd-card" data-console="onyx">
+        <div class="cmd-console"><span class="dot onyx"></span> Onyx</div>
+        <span class="cmd-protocol telnet">TELNET</span>
+        <div class="cmd-code">QLList\r\n</div>
+        <div class="cmd-note">Cuelist names and numbers. No palette or fixture data.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ TRANSLATION PANELS ═══════════ -->
+
+  <div class="panel" id="panel-preset-matrix" data-dir="translate">
+    <div class="action-header">
+      <div class="action-icon bridge">&#x1F504;</div>
+      <div class="action-label"><h3>Preset Translation Matrix</h3><p>Can console presets become ShowUp Looks?</p></div>
+    </div>
+    <table class="matrix-table">
+      <thead><tr><th>Console Concept</th><th>ShowUp Equivalent</th><th>Fidelity</th><th>Method</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Cue</strong> (static DMX)</td><td>Look (captured)</td><td class="fidelity-high">High</td><td>DMX snapshot via sACN</td></tr>
+        <tr><td><strong>Cue</strong> (palette refs + tracking)</td><td>Look (approximated)</td><td class="fidelity-medium">Medium</td><td>Must resolve palettes, fire in sequence</td></tr>
+        <tr><td><strong>Cue List</strong> (ordered sequence)</td><td>Event Pack moments</td><td class="fidelity-high">High</td><td>Workflow mapping (cue order &rarr; moment order)</td></tr>
+        <tr><td><strong>Color Palette</strong> (RGB/CMY)</td><td>ShowUp palette colors</td><td class="fidelity-high">High</td><td>Direct value mapping</td></tr>
+        <tr><td><strong>Position Palette</strong> (pan/tilt)</td><td>centreX / centreY</td><td class="fidelity-medium">Medium</td><td>Normalize fixture range to 0&ndash;1</td></tr>
+        <tr><td><strong>Effect</strong> (chase/rainbow)</td><td>ShowUp effect type</td><td class="fidelity-low">Low</td><td>Procedural vs. programmed &mdash; different paradigm</td></tr>
+        <tr><td><strong>Macro</strong> (command sequence)</td><td>ShowUp macro</td><td class="fidelity-low">Low</td><td>Different paradigm entirely</td></tr>
+        <tr><td><strong>Group</strong> (fixture selection)</td><td>ShowUp fixture group</td><td class="fidelity-high">High</td><td>Fixture ID mapping</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel" id="panel-per-console" data-dir="translate">
+    <div class="action-header">
+      <div class="action-icon bridge">&#x1F6E0;</div>
+      <div class="action-label"><h3>Translation Path by Console</h3><p>Step-by-step process for each console family</p></div>
+    </div>
+    <div class="cmd-grid" style="grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));">
+      <div class="card" data-console="etc" style="border-color: rgba(34,211,238,0.3);">
+        <h3 style="color: var(--etc-teal);">ETC Eos (best)</h3>
+        <ol style="font-size: 12px; color: var(--text-secondary); padding-left: 16px; margin-top: 8px; line-height: 1.8;">
+          <li>Query cue list structure via OSC</li>
+          <li>Fire each cue, capture DMX via sACN</li>
+          <li>Query <code>/eos/out/get/params/{chan}</code></li>
+          <li>Create Look with raw + approximated data</li>
+          <li>Import palettes via <code>/eos/out/get/cp/{n}</code></li>
+          <li>Import groups via <code>/eos/out/get/group/{n}</code></li>
+          <li>Map cue list order &rarr; moment sequence</li>
+        </ol>
+      </div>
+      <div class="card" data-console="ma" style="border-color: rgba(212,168,67,0.3);">
+        <h3 style="color: var(--ma-gold);">GrandMA3</h3>
+        <ol style="font-size: 12px; color: var(--text-secondary); padding-left: 16px; margin-top: 8px; line-height: 1.8;">
+          <li>Export sequences as XML from MA3</li>
+          <li>Parse cue names and structure</li>
+          <li>Fire each cue via <code>/gma3/cmd</code></li>
+          <li>Capture DMX output via sACN</li>
+          <li>Create ShowUp Look from captured DMX</li>
+          <li>Import MVR for patch + groups</li>
+          <li>Map sequence order &rarr; moments</li>
+        </ol>
+      </div>
+      <div class="card" data-console="mq" style="border-color: rgba(249,115,22,0.3);">
+        <h3 style="color: var(--chamsys-orange);">ChamSys MQ</h3>
+        <ol style="font-size: 12px; color: var(--text-secondary); padding-left: 16px; margin-top: 8px; line-height: 1.8;">
+          <li>Export palettes as CSV</li>
+          <li>Parse &rarr; ShowUp palette colors + positions</li>
+          <li>Fire each playback cue via OSC</li>
+          <li>Capture DMX output via sACN</li>
+          <li>Create ShowUp Look from captured DMX</li>
+          <li>Import MVR for patch + groups</li>
+          <li>Map playback order &rarr; moments</li>
+        </ol>
+      </div>
+      <div class="card" data-console="onyx" style="border-color: rgba(239,68,68,0.3);">
+        <h3 style="color: var(--onyx-red);">Onyx (via Telnet)</h3>
+        <ol style="font-size: 12px; color: var(--text-secondary); padding-left: 16px; margin-top: 8px; line-height: 1.8;">
+          <li>Connect Telnet port 2323</li>
+          <li><code>QLList</code> &rarr; get cuelist names</li>
+          <li><code>GQL {n}</code> &rarr; fire each cuelist</li>
+          <li>Capture DMX output via sACN</li>
+          <li>Label looks with cuelist names</li>
+          <li>Manual patch or CSV import</li>
+          <li><code>QLActive</code> &rarr; auto-detect changes</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-cant-translate" data-dir="translate">
+    <div class="action-header">
+      <div class="action-icon" style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);">&#x1F6AB;</div>
+      <div class="action-label"><h3>What Can't Be Translated</h3><p>Console features with no ShowUp equivalent</p></div>
+    </div>
+    <table class="matrix-table">
+      <thead><tr><th>Console Feature</th><th>Why It Can't Translate</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Tracking changes</strong></td><td>Console cues store only <em>changes</em> from previous cue. ShowUp looks are absolute snapshots. Must fire cues in sequence to get cumulative state.</td></tr>
+        <tr><td><strong>Multi-part cues</strong></td><td>Console cues can have parts that fire at different times. ShowUp moments are atomic.</td></tr>
+        <tr><td><strong>Effects (chases)</strong></td><td>Console effects are parameter-based with step tables. ShowUp effects are procedural algorithms. Similar appearance, different data.</td></tr>
+        <tr><td><strong>Fixture-level timing</strong></td><td>Console cues can have per-fixture fade times. ShowUp applies uniform fades.</td></tr>
+        <tr><td><strong>Programmer state</strong></td><td>Console's live adjustments (not yet recorded) have no ShowUp equivalent beyond locked channels.</td></tr>
+        <tr><td><strong>Conditional cues</strong></td><td>Console cue lists can have follow/wait/halt triggers. ShowUp moments are operator-driven.</td></tr>
+      </tbody>
+    </table>
+    <div class="card" style="margin-top: 16px; border-color: rgba(16,185,129,0.3);">
+      <h3 style="color: var(--shared-green);">The Pragmatic Approach</h3>
+      <p style="margin-top: 8px;"><strong>Capture + Map</strong> instead of perfect translation:</p>
+      <ol style="font-size: 13px; color: var(--text-secondary); padding-left: 16px; margin-top: 8px; line-height: 1.8;">
+        <li><strong>Capture</strong> the console's DMX output for each cue &rarr; raw ShowUp looks</li>
+        <li><strong>Map</strong> the cue list structure &rarr; ShowUp moment sequence</li>
+        <li><strong>Import</strong> palette data where available &rarr; ShowUp colors</li>
+        <li><strong>Leave the rest</strong> to the operator &mdash; ShowUp's reactive effects add value precisely because they're <em>different</em></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-dmx-sniff" data-dir="translate">
+    <div class="action-header">
+      <div class="action-icon bridge">&#x1F4E1;</div>
+      <div class="action-label"><h3>Universal Fallback: DMX Sniffing</h3><p>Works with every console on every network</p></div>
+    </div>
+    <div class="card">
+      <h3>How It Works</h3>
+      <p>ShowUp listens for sACN multicast (port 5568). Using the known fixture patch, it maps raw DMX values back to fixture parameters in real-time.</p>
+    </div>
+    <table class="matrix-table">
+      <thead><tr><th>Fixture Parameter</th><th>DMX Channel Type</th><th>Inference Quality</th></tr></thead>
+      <tbody>
+        <tr><td>Intensity</td><td>Dimmer</td><td class="fidelity-high">Exact</td></tr>
+        <tr><td>Color (RGB)</td><td>Red / Green / Blue</td><td class="fidelity-high">Exact</td></tr>
+        <tr><td>Color (CMY)</td><td>Cyan / Magenta / Yellow</td><td class="fidelity-high">Exact (inverted)</td></tr>
+        <tr><td>Color wheel</td><td>Color wheel channel</td><td class="fidelity-high">Exact (with wheel def)</td></tr>
+        <tr><td>Pan / Tilt</td><td>Pan / Tilt channels</td><td class="fidelity-high">Exact</td></tr>
+        <tr><td>Gobo selection</td><td>Gobo wheel channel</td><td class="fidelity-high">Exact (with wheel def)</td></tr>
+        <tr><td>Zoom / Focus / Iris</td><td>Beam channels</td><td class="fidelity-high">Exact</td></tr>
+        <tr><td>Strobe rate</td><td>Strobe channel</td><td class="fidelity-medium">Approximate</td></tr>
+        <tr><td>Effect speed</td><td>Speed channel</td><td class="fidelity-medium">Approximate</td></tr>
+      </tbody>
+    </table>
+    <div class="card" style="margin-top: 16px;">
+      <h3>What DMX Sniffing Cannot Tell ShowUp</h3>
+      <ul style="font-size: 13px; color: var(--text-secondary); padding-left: 16px; margin-top: 8px; line-height: 1.8;">
+        <li>Which cue is active (just the resulting output)</li>
+        <li>Cue names or metadata</li>
+        <li>Fade times (only the current state, not the trajectory)</li>
+        <li>Whether output is from a cue, programmer, or effect</li>
+        <li>Console UI state (which fader the LD is touching)</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const navConfigs = {
+  outbound: [
+    { id: 'moment', label: 'Moment Activation' },
+    { id: 'macro', label: 'Macro Fire' },
+    { id: 'dimmer', label: 'Master Dimmer' },
+    { id: 'quickaction', label: 'Console Quick Actions' },
+  ],
+  inbound: [
+    { id: 'cue-event', label: 'Cue Events' },
+    { id: 'fader-in', label: 'Fader Control' },
+    { id: 'import', label: 'Data Import' },
+  ],
+  translate: [
+    { id: 'preset-matrix', label: 'Preset Matrix' },
+    { id: 'per-console', label: 'Per Console Path' },
+    { id: 'cant-translate', label: 'Limitations' },
+    { id: 'dmx-sniff', label: 'DMX Sniffing' },
+  ]
+};
+
+let currentDir = 'outbound';
+let currentConsole = 'all';
+
+function setDirection(dir) {
+  currentDir = dir;
+  document.querySelectorAll('.dir-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  buildNav();
+  showPanel(navConfigs[dir][0].id);
+}
+
+function buildNav() {
+  const nav = document.getElementById('mainNav');
+  nav.innerHTML = navConfigs[currentDir].map((item, i) =>
+    `<button class="nav-btn${i === 0 ? ' active' : ''}" onclick="showPanel('${item.id}')">${item.label}</button>`
+  ).join('');
+}
+
+function showPanel(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const btns = document.querySelectorAll('.nav-btn');
+  const idx = navConfigs[currentDir].findIndex(n => n.id === id);
+  if (idx >= 0 && btns[idx]) btns[idx].classList.add('active');
+}
+
+function filterConsole(console) {
+  currentConsole = console;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  document.querySelectorAll('.cmd-card').forEach(card => {
+    const c = card.dataset.console;
+    card.style.display = (console === 'all' || c === console || c === 'all') ? '' : 'none';
+  });
+  document.querySelectorAll('.card[data-console]').forEach(card => {
+    const c = card.dataset.console;
+    card.style.display = (console === 'all' || c === console) ? '' : 'none';
+  });
+}
+
+// Init
+buildNav();
+showPanel('moment');
+</script>
+</body>
+</html>
