@@ -369,7 +369,7 @@
         <div class="console-logo ma">MA</div>
         <div><div class="console-name">GrandMA3</div><div class="console-mfg">MA Lighting</div></div>
       </div>
-      <p>The touring industry standard. Command-based OSC API. Co-creator of GDTF and MVR.</p>
+      <p>The touring industry standard. Command-based OSC API. Co-creator of GDTF and MVR. Lua scripting for custom feedback.</p>
       <div class="console-detail">
         <div class="card" style="margin-top:16px; background: var(--bg-deep);">
           <h3 style="color: var(--ma-gold);">What ShowUp Can Do</h3>
@@ -385,17 +385,28 @@
           </ul>
         </div>
         <div class="card" style="background: var(--bg-deep);">
-          <h3 style="color: var(--danger);">Limitations</h3>
+          <h3 style="color: var(--shared-green);">Feedback via ShowUp Companion Plugin</h3>
           <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
-            <li>No per-fader OSC feedback (sequence-level only; third-party plugin needed)</li>
+            <li><strong>Lua plugin</strong> runs on the console, polls executor state at ~10Hz</li>
+            <li>Broadcasts fader positions via <code>/showup/fader/{n}</code> (0.0&ndash;1.0)</li>
+            <li>Reports active cue per sequence and playback state</li>
+            <li>Enables Console Fader &rarr; ShowUp parameter control</li>
+            <li>Community-proven pattern (RikSolo, ArtGateOne, pam-osc)</li>
+            <li>WebSocket on port 8080 is a secondary target for richer state</li>
+          </ul>
+        </div>
+        <div class="card" style="background: var(--bg-deep);">
+          <h3 style="color: var(--danger);">Remaining Limitations</h3>
+          <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
+            <li>Plugin must be installed manually on the console</li>
             <li>No MIDI Show Control support</li>
-            <li>OSC bundles not supported</li>
-            <li>Localhost port conflicts possible</li>
+            <li>No event callbacks in Lua &mdash; polling only (but 10Hz is sufficient)</li>
+            <li>Show files are proprietary binary (XML export for cue data)</li>
           </ul>
         </div>
         <div class="card" style="background: var(--bg-deep);">
           <h3>Recommended Mode</h3>
-          <p style="margin-top:4px;"><strong style="color: var(--primary);">Side by Side</strong> or <strong style="color: var(--primary);">Layer</strong> &mdash; MA3's command-based OSC works well for triggers, and sACN priority merging is the natural fit for layered reactive effects.</p>
+          <p style="margin-top:4px;"><strong style="color: var(--ma-gold);">Any mode (with plugin)</strong> &mdash; Lua plugin makes all modes viable. Layer Mode is natural for touring. MA3 onPC (free) supports full OSC and Lua for development.</p>
         </div>
       </div>
     </div>
@@ -444,7 +455,7 @@
         <div class="console-logo chamsys">MQ</div>
         <div><div class="console-name">ChamSys MagicQ</div><div class="console-mfg">ChamSys (MQ500, MQ250, MQ80, MQ70, MQ60, MQ40)</div></div>
       </div>
-      <p>Playback-centric OSC. Best free software version (64 universes). First major console with GDTF.</p>
+      <p>Built-in OSC feedback. CREP binary protocol. MIDI transmit. Best free software (64 universes). First major console with GDTF.</p>
       <div class="console-detail">
         <div class="card" style="margin-top:16px; background: var(--bg-deep);">
           <h3 style="color: var(--chamsys-orange);">What ShowUp Can Do</h3>
@@ -454,23 +465,34 @@
             <li>Fire macros via <code>/ch/macro/1/go</code></li>
             <li>Import MVR files</li>
             <li>Import GDTF fixtures (first major console to support GDTF)</li>
+            <li>Import color/position/beam palettes from CSV export</li>
             <li>sACN priority merging</li>
             <li>Detect on network via ArtPoll</li>
           </ul>
         </div>
         <div class="card" style="background: var(--bg-deep);">
-          <h3 style="color: var(--danger);">Limitations</h3>
+          <h3 style="color: var(--shared-green);">Built-in Feedback (no plugins needed)</h3>
           <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
-            <li>Only 10 playbacks via direct OSC (AUTOM config needed for more)</li>
-            <li>UDP only (no TCP &mdash; less reliable)</li>
-            <li>OSC not supported on MQ40 / MQ40N consoles</li>
-            <li>PC version needs "Unlocked Mode" for OSC</li>
-            <li>Cannot receive OSC bundles in transmit</li>
+            <li><strong><code>/feedback/pb+exec</code></strong> &mdash; auto-transmits playback and execute state changes</li>
+            <li><strong><code>K</code> macro prefix</strong> &mdash; any cue can send arbitrary OSC on execution (e.g., <code>K/showup/cue/fired,3</code>)</li>
+            <li><strong><code>mqosc</code> personality</strong> &mdash; patchable 1-ch fixture that transmits OSC when its DMX value changes. Put on a fader = instant fader &rarr; ShowUp param control</li>
+            <li><strong>MIDI transmit</strong> &mdash; sends MIDI notes when playbacks are operated</li>
+            <li><strong>CREP protocol</strong> &mdash; binary UDP on port 6553, bidirectional, documented for third parties</li>
+          </ul>
+        </div>
+        <div class="card" style="background: var(--bg-deep);">
+          <h3 style="color: var(--danger);">Remaining Limitations</h3>
+          <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
+            <li>Only 10 playbacks via direct OSC (AUTOM needed for more)</li>
+            <li>UDP only (no TCP)</li>
+            <li>OSC not supported on MQ40 / MQ40N</li>
+            <li>PC version needs ChamSys hardware dongle for "Unlocked Mode"</li>
+            <li>Show files (.shw) are proprietary binary</li>
           </ul>
         </div>
         <div class="card" style="background: var(--bg-deep);">
           <h3>Recommended Mode</h3>
-          <p style="margin-top:4px;"><strong style="color: var(--chamsys-orange);">Side by Side</strong> &mdash; The 10-playback OSC limit means Side by Side avoids the limitation entirely. For simple shows, Trigger Mode also works well.</p>
+          <p style="margin-top:4px;"><strong style="color: var(--chamsys-orange);">Side by Side</strong> or <strong style="color: var(--chamsys-orange);">Trigger</strong> &mdash; Built-in feedback makes Trigger Mode more viable than initially assessed. Side by Side avoids the 10-PB limit. K macros give precise per-cue event notification.</p>
         </div>
       </div>
     </div>
@@ -481,7 +503,7 @@
         <div class="console-logo onyx">NX</div>
         <div><div class="console-name">Obsidian Onyx</div><div class="console-mfg">Obsidian Control Systems (NX4, NX2, NX1, NX Wing)</div></div>
       </div>
-      <p>Solid MIDI Show Control support. Budget-friendly hardware. OSC subset with licensing caveats.</p>
+      <p>MIDI Show Control is the strongest path. Budget-friendly hardware. Significant API limitations. DMX sniffing essential.</p>
       <div class="console-detail">
         <div class="card" style="margin-top:16px; background: var(--bg-deep);">
           <h3 style="color: var(--onyx-red);">What ShowUp Can Do</h3>
@@ -489,25 +511,37 @@
             <li>Control playback faders 1-10, buttons 1-20</li>
             <li>Set GrandMaster and FlashMaster levels</li>
             <li>Trigger 50+ keyboard functions via OSC</li>
-            <li><strong>MIDI Show Control (MSC)</strong> &mdash; Onyx's strongest path</li>
-            <li>MIDI notes and timecode</li>
+            <li><strong>MIDI Show Control (MSC)</strong> &mdash; Onyx's strongest integration path</li>
+            <li>MIDI notes and timecode input</li>
             <li>sACN and Art-Net output</li>
             <li>Detect on network via ArtPoll</li>
+            <li>CITP for media server thumbnail exchange</li>
+            <li>Telnet/UDP exterior triggers (v4.10+)</li>
           </ul>
         </div>
         <div class="card" style="background: var(--bg-deep);">
-          <h3 style="color: var(--danger);">Limitations</h3>
+          <h3 style="color: var(--warning);">Feedback (severely limited)</h3>
           <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
-            <li><strong>No MVR support</strong> (CSV patch import only)</li>
-            <li><strong>No GDTF</strong> fixture import confirmed</li>
-            <li>OSC/MIDI restricted to evaluation in FREE mode</li>
-            <li>No bidirectional OSC feedback</li>
-            <li>Port labeling is inverted from external tools</li>
+            <li>OSC feedback <strong>only</strong> for: MainPlaybackButtons, MainPlaybackFaders, Programmer keys, F-Keys</li>
+            <li>All other functions provide <strong>zero feedback</strong></li>
+            <li>Onyx does <strong>NOT generate MIDI</strong> &mdash; receive only, no note-on when cues fire</li>
+            <li><strong>DMX sniffing (sACN input)</strong> is the primary feedback path &mdash; read Onyx's output to infer fixture state</li>
+            <li>Workaround: dedicate DMX channel as "ShowUp control channel", read via sACN</li>
+          </ul>
+        </div>
+        <div class="card" style="background: var(--bg-deep);">
+          <h3 style="color: var(--danger);">Hard Limitations</h3>
+          <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
+            <li><strong>No MVR</strong>, <strong>no GDTF</strong>, <strong>no export</strong> of cues/presets/groups</li>
+            <li>OSC/MIDI in FREE/NOVA: 5-min trial with <strong>random execution delays</strong></li>
+            <li>Full protocol access requires NOVA+ or higher license</li>
+            <li>Port labeling inverted from external tools</li>
+            <li>Show files (.ONYX) are proprietary binary</li>
           </ul>
         </div>
         <div class="card" style="background: var(--bg-deep);">
           <h3>Recommended Mode</h3>
-          <p style="margin-top:4px;"><strong style="color: var(--onyx-red);">Trigger Mode via MSC</strong> &mdash; Onyx's OSC is limited, but MIDI Show Control is solid. MSC bypasses the OSC limitations. CSV patch import fills the MVR gap.</p>
+          <p style="margin-top:4px;"><strong style="color: var(--onyx-red);">Trigger Mode via MSC</strong> &mdash; MSC is solid and bypasses OSC limitations. DMX sniffing compensates for missing feedback. CSV patch import is the only rig import path.</p>
         </div>
       </div>
     </div>
@@ -546,10 +580,10 @@
       </tr>
       <tr>
         <td><strong>OSC Feedback (Console &rarr; ShowUp)</strong></td>
-        <td class="gap-partial">Plugin needed</td>
+        <td class="gap-check">Yes (Lua plugin)</td>
         <td class="gap-best">Full native (/eos/out/)</td>
-        <td class="gap-cross">No</td>
-        <td class="gap-cross">No</td>
+        <td class="gap-check">Built-in (/feedback/)</td>
+        <td class="gap-partial">Main PBs only</td>
       </tr>
       <tr>
         <td><strong>MIDI Show Control</strong></td>
@@ -602,10 +636,38 @@
       </tr>
       <tr>
         <td><strong>Console Fader &rarr; ShowUp Param</strong></td>
-        <td class="gap-cross">No (no feedback)</td>
-        <td class="gap-best">Yes (3s delay)</td>
+        <td class="gap-check">Yes (Lua plugin)</td>
+        <td class="gap-best">Yes (native, 3s delay)</td>
+        <td class="gap-check">Yes (mqosc / feedback)</td>
+        <td class="gap-partial">DMX sniff only</td>
+      </tr>
+      <tr>
+        <td><strong>Cue Execution Events</strong></td>
+        <td class="gap-check">Yes (Lua plugin)</td>
+        <td class="gap-best">Yes (native events)</td>
+        <td class="gap-check">Yes (K macro)</td>
         <td class="gap-cross">No</td>
-        <td class="gap-cross">No</td>
+      </tr>
+      <tr>
+        <td><strong>MIDI Transmit (Console &rarr;)</strong></td>
+        <td class="gap-partial">Notes only</td>
+        <td class="gap-check">MSC + Notes</td>
+        <td class="gap-check">Notes on playback</td>
+        <td class="gap-cross">None (receive only)</td>
+      </tr>
+      <tr>
+        <td><strong>Alternative Protocol</strong></td>
+        <td class="gap-check">Lua API, WebSocket</td>
+        <td class="gap-partial">&mdash;</td>
+        <td class="gap-best">CREP (binary UDP)</td>
+        <td class="gap-partial">Telnet/UDP, CITP</td>
+      </tr>
+      <tr>
+        <td><strong>Palette/Preset Export</strong></td>
+        <td class="gap-check">XML export</td>
+        <td class="gap-check">CSV export</td>
+        <td class="gap-best">CSV palette export</td>
+        <td class="gap-cross">No export</td>
       </tr>
       <tr>
         <td><strong>Free Software Version</strong></td>
@@ -620,25 +682,25 @@
   <div class="card" style="margin-top: 24px;">
     <h3>Integration Quality Summary</h3>
     <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px;">
-      <div style="text-align: center; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-deep);">
-        <div style="font-size: 32px; margin-bottom: 8px; color: var(--ma-gold);">B+</div>
+      <div style="text-align: center; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-deep); border: 1px solid rgba(212,168,67,0.3);">
+        <div style="font-size: 32px; margin-bottom: 8px; color: var(--ma-gold);">A-</div>
         <div style="font-size: 14px; font-weight: 600;">GrandMA3</div>
-        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Great triggers + MVR/GDTF. Feedback is the gap.</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Lua plugin solves feedback. Strong MVR/GDTF. WebSocket bonus.</div>
       </div>
       <div style="text-align: center; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-deep); border: 1px solid var(--etc-teal);">
         <div style="font-size: 32px; margin-bottom: 8px; color: var(--etc-teal);">A+</div>
         <div style="font-size: 14px; font-weight: 600;">ETC Eos</div>
-        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Best integration. Full bidirectional. All modes.</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Best integration. Full bidirectional. Cue events. All modes.</div>
       </div>
-      <div style="text-align: center; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-deep);">
-        <div style="font-size: 32px; margin-bottom: 8px; color: var(--chamsys-orange);">B</div>
+      <div style="text-align: center; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-deep); border: 1px solid rgba(249,115,22,0.3);">
+        <div style="font-size: 32px; margin-bottom: 8px; color: var(--chamsys-orange);">B+</div>
         <div style="font-size: 14px; font-weight: 600;">ChamSys MQ</div>
-        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Solid basics. 10-PB limit. Best free software.</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Built-in feedback. CREP protocol. MIDI transmit. Best free SW.</div>
       </div>
       <div style="text-align: center; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-deep);">
         <div style="font-size: 32px; margin-bottom: 8px; color: var(--onyx-red);">C+</div>
         <div style="font-size: 14px; font-weight: 600;">Onyx</div>
-        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">MSC is strong. No MVR/GDTF. OSC licensing gaps.</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">MSC is strong. No exports. No MIDI out. DMX sniff as fallback.</div>
       </div>
     </div>
   </div>

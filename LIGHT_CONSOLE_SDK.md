@@ -99,7 +99,7 @@ light_console_sdk/
 
 ### GrandMA3 (MA Lighting)
 
-**Connection:** OSC over UDP, default port 8000.
+**Connection:** OSC over UDP, user-configurable port (commonly 8000). Also: WebSocket on port 8080 (undocumented), SFTP on port 22.
 
 **What ShowUp can do:**
 - Fire cues via `/gma3/cmd` with text commands ("Go+ Cue 3")
@@ -111,21 +111,42 @@ light_console_sdk/
 - Import GDTF fixture definitions (MA co-created the standard)
 - Detect MA3 on the network via ArtPoll OEM codes
 
-**What ShowUp cannot do:**
-- Receive per-fader position feedback (MA3 only sends sequence-level feedback natively; a third-party plugin is needed for per-fader OSC output)
+**Bidirectional feedback (via ShowUp Companion Lua Plugin):**
+- MA3 supports Lua 5.4.4 plugins that run directly on the console
+- The plugin polls executor state via `GetExecutor(N):GetFader({})` at ~10Hz
+- Broadcasts fader positions, active cue numbers, and playback state via `SendOSC`
+- This is the established community pattern — RikSolo, ArtGateOne, and pam-osc all use it
+- ShowUp ships a ready-to-install `.lua` plugin in `companion_plugins/grandma3/`
+- Addresses: `/showup/fader/{n}` (0.0-1.0), `/showup/cue/active` (cue name), `/showup/playback/{n}/state` (active/released)
+- No event callbacks in Lua — polling is the only approach, but 10Hz is more than sufficient
+
+**Console fader → ShowUp parameter:**
+- With the Companion Plugin installed, the LD assigns an executor to "ShowUp Intensity"
+- Plugin sends `/showup/param/masterDimmer,f,0.75` whenever the fader moves
+- ShowUp's `ConsoleInputService` maps it to master dimmer, color speed, movement, etc.
+
+**What ShowUp cannot do natively (without plugin):**
+- Receive per-fader position feedback (sequence-level only)
 - Use MIDI Show Control (MA3 does not support MSC)
-- Receive cue state changes without polling
+- Parse show files directly (proprietary binary format)
+
+**Alternative protocols:**
+- WebSocket on port 8080 — undocumented but functional; potential reverse-engineering target for richer state
+- XML export from console — sequence/cue data can be exported and parsed for cue names, timing
+- MA-Net3 (UDP multicast port 30020) — proprietary, undocumented, not usable by third parties
+- DMX sniffing via sACN — read MA3's output to infer fixture state (universal fallback)
 
 **Special considerations:**
-- MA3 uses a command-based OSC API — most operations go through `/gma3/cmd` with a text body, unlike the address-based APIs of other consoles
+- MA3 uses a command-based OSC API — most operations go through `/gma3/cmd` with a text body
 - OSC bundles are not supported
+- MA3 onPC (free) supports full OSC and Lua for SDK development/testing
 - Localhost port conflicts are possible if ShowUp runs on the same machine
 
 ---
 
 ### ETC Eos Family (Eos, Ion, Element, ColorSource)
 
-**Connection:** OSC over TCP (preferred, port 3032) or UDP. Third-party port 3037.
+**Connection:** OSC over TCP (preferred, port 3032) or UDP. Third-party OSC on port 3037 (v3.1.0+, TCP SLIP only, ~10Hz updates).
 
 **What ShowUp can do:**
 - Fire cues via `/eos/cue/{list}/{cue}/fire`
@@ -133,28 +154,55 @@ light_console_sdk/
 - Control individual channels via `/eos/chan/{chan}`
 - Fire macros via `/eos/macro/{macro}/fire`
 - Send command-line instructions via `/eos/cmd`
-- **Receive full bidirectional feedback** — fader positions, wheel values, active cue info, patch data via `/eos/out/` addresses
-- Use MIDI Show Control (MSC) for cue triggers
+- Use MIDI Show Control (MSC) for cue triggers (up to 32 MSC sources)
 - Share the network via sACN (ETC invented sACN / E1.31)
 - Import MVR files (Eos v3.2+)
 - Import GDTF fixture definitions (Eos v3.2.4+)
 - Detect Eos on the network via ArtPoll
 
+**Full bidirectional feedback (native, no plugins needed):**
+- **Cue events:** `/eos/out/event/cue/{list}/{cue}/fire` and `.../stop` — ShowUp knows exactly when and which cue fires
+- **Active cue:** `/eos/out/active/cue` — current running cue broadcast
+- **Channel data:** `/eos/out/get/params/{channel}` — intensity, pan, tilt, focus, color parameters (v3.2+)
+- **Patch info:** `/eos/out/get/patch/{chan}/{part}/list/{index}/{count}` — address mapping, fixture type, current level
+- **Fader positions:** `/eos/out/fader/` — real-time fader positions
+- **Palettes:** `/eos/out/get/cp/{n}` (color), `/eos/out/get/fp/{n}` (focus), `/eos/out/get/bp/{n}` (beam) — palette metadata and channel assignments
+- **Cue lists:** `/eos/out/get/cuelist/{n}`, `/eos/out/get/cue/{list}/{cue}/{part}` — full cue list structure
+- **Groups/subs/macros:** `/eos/out/get/group/{n}`, `/eos/out/get/sub/{n}`, `/eos/out/get/macro/{n}`
+- **Events:** `/eos/out/event/sub/{n}`, `/eos/out/event/macro/{n}`, `/eos/out/event/relay/{n}/{group}`
+
+**Console fader → ShowUp parameter (native):**
+- LD assigns a fader on their desk; Eos broadcasts the value via `/eos/out/fader/`
+- ShowUp maps incoming fader values to master dimmer, color speed, movement intensity, etc.
+- 3-second debounce after OSC-driven fader moves (the only quirk)
+
+**Preset translation path:**
+- Read palette names + channel assignments via OSC queries
+- Fire each cue in sequence, capture resulting DMX via sACN
+- Build a ShowUp look library that matches the console's cue structure
+- CSV export available via File > Export > CSV (cue metadata + channel moves)
+
+**ColorSource family:**
+- Uses `/cs/` prefix, NOT `/eos/` — completely different OSC namespace
+- UDP only (ports 8005/8006), much simpler command set
+- AV models add audio/video transport controls; non-AV has reduced networking
+- Minimal feedback compared to Eos's rich `/eos/out/` system
+
 **What ShowUp cannot do:**
 - Receive GDTF multi-cell fixture data (import limitation)
-- Control ColorSource non-AV models (reduced networking on base models)
+- Get bulk "all channel output levels" via OSC (must use sACN sniffing for that)
+- Parse Eos show files directly (.esf/.esf2/.esf3d — proprietary binary)
 
 **Special considerations:**
-- Eos has the most comprehensive OSC API of any lighting console — it's the best integration target
-- TCP is preferred over UDP for reliability; supports both OSC 1.0 and 1.1 (SLIP) framing
-- 3-second debounce on fader feedback after OSC-driven moves
-- Show Control settings must be enabled manually on the console
+- Eos has the most comprehensive OSC API of any lighting console — the best integration target
+- Eos Nomad (free) supports full OSC bidirectional capability for SDK development — no cost
+- Show Control settings must be enabled manually on the console (Setup > Device > Network)
 
 ---
 
 ### ChamSys MagicQ (MQ500, MQ250, MQ80, MQ70, MQ60, MQ40)
 
-**Connection:** OSC over UDP, user-configurable ports (must be >1024).
+**Connection:** OSC over UDP (user-configurable ports, >1024). Also: ChamSys Remote Ethernet Protocol (CREP) on port 6553.
 
 **What ShowUp can do:**
 - Control playbacks 1-10 via built-in OSC addresses (`/ch/playback/{n}/go`, `/ch/playback/{n}/level`)
@@ -165,23 +213,38 @@ light_console_sdk/
 - Import GDTF fixture definitions (first major console to support GDTF)
 - Detect MagicQ on the network via ArtPoll
 
+**Bidirectional feedback (built-in, no plugins needed):**
+- **`/feedback/pb+exec`** — MagicQ automatically transmits playback and execute state changes. ShowUp knows when playbacks fire, release, and where faders are.
+- **`K` macro prefix** — Any cue's macro field can include `K/showup/cue/fired,3` to send an OSC message when that specific cue executes. This is precise per-cue feedback.
+- **`mqosc` generic personality** — A patchable 1-channel "fixture" that transmits an OSC message whenever its DMX value changes. Put it on a fader; value changes become OSC. Effectively turns any DMX channel into an OSC control channel.
+- **MIDI transmit** — MagicQ sends MIDI notes when main playbacks are operated. Configurable via `miditable.txt`. ShowUp can listen for MIDI to know playback state.
+
+**Console fader → ShowUp parameter (built-in):**
+- `mqosc` personality on a fader → value changes transmit as OSC → ShowUp maps to parameter
+- Or: use `/feedback/pb+exec` to read playback fader positions directly
+- Or: CREP binary protocol for full bidirectional playback state
+
+**Alternative protocols:**
+- **CREP (ChamSys Remote Ethernet Protocol):** UDP port 6553. Binary packet: `CREP` header + version + sequence + ASCII commands. Bidirectional — send commands and receive state. Documented for third parties.
+- **DMX input → AUTOM:** Incoming DMX values on specified channels can trigger playback, cue stack, macro, or layout functions. ShowUp could output a DMX "control channel" that MagicQ acts on.
+- **CSV palette export:** Color, position, and beam palettes can be exported as CSV with raw values. ShowUp can parse these to populate its color palette with the console's palette colors.
+
 **What ShowUp cannot do:**
-- Control more than 10 playbacks without AUTOM (automation) configuration on the console side
-- Use TCP (UDP only — less reliable delivery)
+- Control more than 10 playbacks without AUTOM configuration on the console side
+- Use TCP (UDP only)
 - Use OSC on MQ40 and MQ40N consoles (not supported on these models)
-- Use OSC on MagicQ PC without "Unlocked Mode"
+- Use OSC on MagicQ PC without "Unlocked Mode" (requires ChamSys hardware dongle)
+- Parse `.shw` show files directly (proprietary binary)
 
 **Special considerations:**
-- MagicQ PC/Mac/Linux is free with 64 universes of output — the best free offering of any console
-- The 10-playback OSC limitation means users with complex cue layouts need to configure AUTOM on the console for broader control
-- OSC bundles can be received but not transmitted
-- Control network requires firewall disable for OSC on some configurations
+- MagicQ PC/Mac/Linux is free with 64 universes — but OSC/MIDI requires hardware dongle for "Unlocked Mode"
+- MagicQ's feedback capabilities were significantly undersold in initial research — it has more bidirectional options than any console except Eos
 
 ---
 
 ### Obsidian Onyx (NX4, NX2, NX1, NX Wing)
 
-**Connection:** OSC over UDP, user-configurable ports.
+**Connection:** OSC over UDP (via ShowCockpit driver, v4.4.1186+). Also: Telnet/UDP exterior triggers (v4.10+). MIDI/MSC input.
 
 **What ShowUp can do:**
 - Control playback faders 1-10 and buttons 1-20 (Go/Pause/Release)
@@ -191,19 +254,47 @@ light_console_sdk/
 - Use MIDI notes and timecode
 - Share the network via sACN and Art-Net
 - Detect Onyx on the network via ArtPoll
+- Use CITP for media server thumbnail exchange
+
+**Bidirectional feedback (severely limited):**
+- OSC feedback exists ONLY for: MainPlaybackButtons, MainPlaybackFaders, Programmer keys, F-Keys
+- All other functions (encoders, parameter buttons, bank changes, cuelist state, cue numbers) provide **zero feedback**
+- Onyx does NOT generate MIDI messages — it only receives. No MIDI note-on when cues fire.
+- **DMX sniffing is the primary feedback path** — ShowUp reads Onyx's sACN output to infer fixture state
+
+**Console fader → ShowUp parameter (workaround only):**
+- Dedicate a DMX channel as a "ShowUp control channel"
+- Onyx outputs it via sACN; ShowUp reads it via DMX input service
+- Crude but functional — the value range maps to a parameter
+- Main playback fader positions are readable via OSC (the only native option)
+
+**Alternative protocols:**
+- **Telnet/UDP exterior triggers (v4.10+):** Basic cue triggering via network commands. Sparse documentation.
+- **CITP:** Bidirectional thumbnail exchange with media servers and visualizers. Patch import from CITP-compatible visualizers.
+- No REST API, WebSocket, HTTP endpoints, or documented web interface.
 
 **What ShowUp cannot do:**
-- Import MVR files (Onyx does not support MVR export)
-- Import GDTF fixture definitions natively (not confirmed in current versions)
-- Use OSC/MIDI in FREE mode (restricted to evaluation periods)
-- Receive bidirectional OSC feedback
-- Control more than 10 playback faders via OSC
+- Import MVR files (Onyx does not support MVR)
+- Import GDTF fixture definitions (not confirmed in current versions)
+- Use OSC/MIDI in FREE or NOVA mode (restricted to 5-minute trial with random execution delays)
+- Receive cue execution events or cue names
+- Export cuelist data, presets, or groups (no export mechanism at all)
+- Parse `.ONYX` show files (proprietary binary)
+
+**Software tier limitations:**
+
+| Tier | Universes | OSC/MIDI/TC | Notes |
+|------|-----------|-------------|-------|
+| FREE | 1 | 5-min trial, random delays | No hardware required |
+| NOVA | 4 | Trial only | Requires NX-DMX or NETRON |
+| NOVA+ | 4 | **Fully enabled** | Requires NX-Touch/K/P |
+| LIVE 8-128 | 8-128 | **Fully enabled** | License key required |
 
 **Special considerations:**
-- ONYX FREE mode limits output to 1 universe and restricts OSC/MIDI to evaluation — this is a significant limitation for free-tier users
-- Port labeling is inverted: Onyx's "Output Port" maps to the external tool's "Input Port" and vice versa
-- MIDI/MSC is the strongest protocol path for Onyx integration
-- Missing MVR/GDTF means rig import requires CSV patch export from Onyx
+- Port labeling is inverted: Onyx's "Output Port" = ShowUp's input and vice versa
+- MIDI/MSC is the strongest protocol path — OSC is too limited for rich integration
+- The lack of any export mechanism makes Onyx the hardest console to integrate with
+- ShowUp's DMX sniffing (sACN input) becomes essential here to compensate for missing APIs
 
 ---
 
@@ -213,38 +304,50 @@ light_console_sdk/
 
 | Feature | GrandMA3 | ETC Eos | ChamSys MQ | Onyx |
 |---------|:--------:|:-------:|:----------:|:----:|
-| OSC Output (ShowUp → Console) | Yes | **Best** | Limited (10 PBs) | Limited (10 faders) |
-| OSC Input (Console → ShowUp) | Plugin needed | **Full native** | Unknown | No |
-| MIDI Show Control | **No** | Yes | Partial | **Yes** |
-| MIDI Notes/CC | Yes | Yes | Yes | Yes |
+| OSC Output (ShowUp → Console) | Yes (via /cmd) | **Best** (dedicated addresses) | Yes (10 PBs built-in) | Limited (10 faders) |
+| OSC Input (Console → ShowUp) | **Lua plugin** | **Full native** | **Built-in feedback** | Main PBs only |
+| MIDI Show Control | No | **Yes** (32 sources) | Partial | **Yes** |
+| MIDI Transmit (Console → ShowUp) | Notes only | MSC + Notes | **Notes on playback** | **None** |
 | sACN Output | Yes | **Yes (inventor)** | Yes | Yes |
 | sACN Priority Merging | Yes | Yes | Yes | Yes |
 | Art-Net | Yes | Yes | Yes | Yes |
-| MVR Import/Export | **Yes (native)** | Yes (import) | Yes (import) | **No** |
-| GDTF Fixtures | **Yes (co-creator)** | Yes (limited) | Yes | **No** |
-| Bidirectional Faders | **No** | **Yes** | No | No |
-| Free Software | No | Nomad (limited) | **64 universes** | 1 universe |
+| MVR Import/Export | **Yes (co-creator)** | Yes (import) | Yes (import) | **No** |
+| GDTF Fixtures | **Yes (co-creator)** | Yes (limited) | Yes (first adopter) | **No** |
+| Bidirectional Faders | **Yes (via plugin)** | **Yes (native)** | **Yes (built-in)** | Main PBs only |
+| Alternative Protocol | Lua API, WebSocket | — | **CREP (binary UDP)** | Telnet/UDP, CITP |
+| Free Software | onPC (no DMX out) | Nomad (no DMX out) | **64 universes free** | 1 universe free |
 
 ### Integration Quality by Use Case
 
 | Use Case | GrandMA3 | ETC Eos | ChamSys MQ | Onyx |
 |----------|:--------:|:-------:|:----------:|:----:|
-| Fire cues from ShowUp moments | Good | **Excellent** | Good | Good (MSC) |
-| Capture console looks | Good | **Excellent** | Good | Good |
-| Console fader → ShowUp control | Requires plugin | **Native** | Limited | No |
-| Import console's fixture patch | **Excellent** (MVR+GDTF) | Good (MVR) | Good (MVR+GDTF) | **CSV only** |
+| Fire cues from ShowUp moments | **Good** | **Excellent** | **Good** | Good (MSC) |
+| Capture console looks (DMX) | **Good** | **Excellent** | **Good** | Good |
+| Console fader → ShowUp control | **Good (plugin)** | **Excellent (native)** | **Good (built-in)** | **Limited (DMX sniff)** |
+| Know when console fires a cue | **Good (plugin)** | **Excellent (events)** | **Good (K macro)** | **No** |
+| Import console's fixture patch | **Excellent** (MVR+GDTF) | Good (MVR+GDTF) | Good (MVR+GDTF+CSV) | **CSV only** |
+| Import console's color palettes | XML export | CSV export | **CSV palette export** | **No export** |
+| Console preset → ShowUp Look | DMX capture + XML | **OSC query + CSV** | DMX capture + CSV | DMX capture only |
 | Auto-failover on disconnect | Good | Good | Good | Good |
 | Universe priority merging | Good | **Excellent** | Good | Good |
-| Zero-config detection | Good | Good | Good | Good |
+
+### Integration Grades
+
+| Console | Grade | Rationale |
+|---------|:-----:|-----------|
+| GrandMA3 | **A-** | Lua plugin solves the feedback gap. Strong MVR/GDTF. Command-based OSC is flexible. WebSocket is a bonus target. |
+| ETC Eos | **A+** | Best integration of any console. Full bidirectional OSC with cue events, fader feedback, palette queries. |
+| ChamSys MQ | **B+** | Built-in feedback was undersold initially. CREP protocol adds a real bidirectional channel. MIDI transmit. Best free software. |
+| Onyx | **C+** | Fundamental platform limitations. No MIDI output, no exports, OSC licensing restrictions. MSC input is the saving grace. |
 
 ### Recommended Coexistence Mode by Console
 
 | Console | Best Mode | Why |
 |---------|-----------|-----|
-| GrandMA3 | **Side by Side** or **Layer** | MA3's command-based OSC works well for triggers, but lack of bidirectional feedback makes full Layer mode the sweet spot — ShowUp fills reactive gaps |
-| ETC Eos | **Any mode** | Eos's rich bidirectional OSC makes all modes work equally well. Trigger Mode is especially powerful because ShowUp can read back cue state |
-| ChamSys MQ | **Side by Side** | The 10-playback OSC limit means Trigger Mode works best for simple shows. Side by Side avoids OSC limitations entirely |
-| Onyx | **Trigger Mode** (via MSC) | Onyx's OSC is limited, but MSC support is solid. MIDI triggers bypass OSC limitations. CSV patch import fills the MVR gap |
+| GrandMA3 | **Any mode (with plugin)** | Lua plugin makes all modes viable. Layer Mode is natural for touring where ShowUp adds reactive ambiance beneath the LD's programming. |
+| ETC Eos | **Any mode** | Eos's rich bidirectional OSC makes all modes work equally well. Trigger Mode is especially powerful because ShowUp can subscribe to cue execution events. |
+| ChamSys MQ | **Side by Side** or **Trigger** | Built-in playback feedback makes Trigger Mode more viable than initially assessed. Side by Side avoids the 10-playback limit. |
+| Onyx | **Trigger Mode** (via MSC) | Onyx's OSC is limited, but MSC is solid. MIDI triggers bypass OSC limitations. DMX sniffing fills the feedback gap for look capture. |
 
 ---
 
@@ -307,6 +410,80 @@ Console goes offline (heartbeat timeout)
       → ShowUp fades back to its own universes over 2 seconds
       → Console regains control seamlessly
 ```
+
+---
+
+## Companion Plugins
+
+The SDK includes console-side scripts that extend feedback capabilities beyond what stock console software provides.
+
+### `companion_plugins/grandma3/ShowUpCompanion.lua`
+A Lua plugin that runs directly on the GrandMA3 console. Polls executor state at ~10Hz and broadcasts to ShowUp via OSC:
+- Fader positions for executors 201-215 (configurable)
+- Active playback state (playing/released)
+- Current cue name and number per sequence
+- Page change notifications
+
+Installation: Copy to `/ma/ma3_library/datapools/plugins/` on the console. Add an OSC "In & Out" entry pointing to ShowUp's IP. The plugin auto-starts and requires no further configuration.
+
+### `companion_plugins/chamsys/ShowUpCueMacros.txt`
+A set of `K` macro templates for ChamSys cue stacks. Each cue can include `K/showup/cue/fired,{cue_number}` in its macro field to notify ShowUp when that specific cue executes. The file provides copy-pasteable macro strings for common workflows.
+
+### Console-Side DMX Control Channel Convention
+For consoles without rich OSC feedback (especially Onyx), the SDK defines a convention:
+- Patch a dimmer-only fixture at Universe 16, Address 500
+- Assign it to a fader labeled "ShowUp"
+- ShowUp reads this channel via sACN input and maps its value (0-255) to master dimmer (0.0-1.0)
+- Additional channels at 501-504 can map to color speed, movement speed, effect intensity, and excitement
+
+This is a universal fallback that works with ANY console on ANY network.
+
+---
+
+## Console → ShowUp Sync
+
+### What Can Flow from Console to ShowUp
+
+**ETC Eos (richest):**
+- Cue execution events → auto-advance ShowUp moments
+- Fader positions → control ShowUp parameters in real-time
+- Palette names and channel assignments → populate ShowUp's look library metadata
+- Active channel selections → highlight corresponding ShowUp fixture groups
+- Group definitions → suggest ShowUp group mappings
+
+**GrandMA3 (via Companion Plugin):**
+- Executor fader positions → control ShowUp parameters
+- Active cue per sequence → sync ShowUp moment state
+- Page changes → switch ShowUp's active event pack or bank
+
+**ChamSys MagicQ (built-in):**
+- Playback state changes → sync ShowUp moment state
+- Per-cue OSC via K macros → precise cue-to-moment mapping
+- MIDI note-on for playbacks → ShowUp knows which playback fired
+- Palette CSV export → import console colors into ShowUp's palette
+
+**Obsidian Onyx (limited):**
+- Main playback fader positions → limited ShowUp parameter control
+- DMX channel sniffing → infer console state from output
+- MSC commands (inbound) → ShowUp can listen for MSC it receives
+
+### Console Shortcuts in ShowUp's Perform Screen
+
+ShowUp's Perform screen has room for additional "looks" real estate. The SDK enables **Console Quick Actions** — a row of buttons in ShowUp's Perform screen that map directly to console-specific operations:
+
+**Imported from console (when data is available):**
+- Cue list names from Eos OSC queries → "Front Wash", "Blue Backlight" buttons
+- Palette names from ChamSys CSV export → quick color recall buttons
+- Captured look thumbnails → visual recall of console states
+
+**User-configurable console shortcuts:**
+- "Console Cue 5" → fires a specific cue without a moment mapping
+- "Console Macro 3" → fires a console macro independently
+- "Console Blackout" → sends the console's blackout command
+- "Console Release All" → releases all playbacks on the console
+- "Console Next Cue" → advances the console's active cue list
+
+These appear in a collapsible "Console" section on the Perform screen, visually distinguished with blue (console-blue) styling. They're stored in the show file alongside trigger bindings.
 
 ---
 
