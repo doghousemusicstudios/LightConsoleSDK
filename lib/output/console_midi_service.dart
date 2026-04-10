@@ -21,7 +21,7 @@ class ConsoleMidiService {
       _profile.midiSettings ?? const ConsoleMidiSettings();
 
   /// List available MIDI devices.
-  Future<List<MidiDevice>> listDevices() => _midi.listOutputDevices();
+  Future<List<MidiDeviceDescriptor>> listDevices() => _midi.listOutputDevices();
 
   /// Open a MIDI device by ID.
   Future<void> connect(String deviceId) => _midi.open(deviceId);

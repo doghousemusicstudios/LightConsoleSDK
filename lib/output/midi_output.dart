@@ -1,16 +1,70 @@
 import 'dart:typed_data';
 
-/// Platform MIDI output abstraction.
+/// Abstract backend for platform-specific MIDI output.
 ///
-/// On macOS/iOS, this uses CoreMIDI via dart:ffi.
-/// On other platforms, this is a stub that logs warnings.
+/// ShowUp provides the concrete implementation via [ShowUpMidiOutputBackend]
+/// which delegates to CoreMIDI on macOS/iOS through a Flutter MethodChannel.
+/// The SDK never touches native code directly — it constructs MIDI byte
+/// sequences and hands them to the backend.
+abstract class MidiOutputBackend {
+  /// List available MIDI output devices on this platform.
+  Future<List<MidiDeviceDescriptor>> listDevices();
+
+  /// Open a MIDI output device for sending.
+  Future<void> openDevice(String deviceId);
+
+  /// Send raw MIDI bytes to the open device.
+  Future<void> sendBytes(Uint8List bytes);
+
+  /// Close the currently open device.
+  Future<void> closeDevice();
+}
+
+/// Describes a MIDI output device discovered on the platform.
+class MidiDeviceDescriptor {
+  final String id;
+  final String name;
+  final String connectionType; // 'network', 'device', 'virtual', 'unknown'
+  final bool isNetwork;
+  final Map<String, Object?> details;
+
+  const MidiDeviceDescriptor({
+    required this.id,
+    required this.name,
+    this.connectionType = 'unknown',
+    this.isNetwork = false,
+    this.details = const {},
+  });
+}
+
+/// MIDI output with message construction and optional platform backend.
 ///
-/// For the initial implementation, this provides the public API and
-/// MSC (MIDI Show Control) SysEx construction. The native CoreMIDI
-/// bridge will be implemented as a separate native plugin.
+/// Constructs valid MIDI byte sequences (Note On/Off, CC, Program Change,
+/// MSC SysEx) and sends them via an injected [MidiOutputBackend].
+/// If no backend is provided, message construction still works (useful
+/// for testing) but bytes are silently dropped.
+///
+/// Usage:
+/// ```dart
+/// // With backend (ShowUp injects this):
+/// final midi = MidiOutput(backend: ShowUpMidiOutputBackend(bridge));
+/// await midi.open('device-id');
+/// midi.sendNoteOn(0, 60, 127);
+///
+/// // Without backend (testing/inspection):
+/// final midi = MidiOutput();
+/// midi.sendMscGo(cueNumber: '3'); // builds bytes but doesn't send
+/// print(midi.lastBytes); // inspect the constructed message
+/// ```
 class MidiOutput {
+  final MidiOutputBackend? _backend;
   bool _isOpen = false;
   String? _deviceId;
+
+  /// The last bytes constructed by any send method (for testing/inspection).
+  Uint8List? lastBytes;
+
+  MidiOutput({MidiOutputBackend? backend}) : _backend = backend;
 
   /// Whether a MIDI device is open.
   bool get isOpen => _isOpen;
@@ -18,19 +72,20 @@ class MidiOutput {
   /// The currently open device ID.
   String? get deviceId => _deviceId;
 
+  /// Whether a backend is available for actual MIDI transmission.
+  bool get hasBackend => _backend != null;
+
   /// List available MIDI output devices.
-  ///
-  /// Returns a list of device descriptors with id and name.
-  Future<List<MidiDevice>> listOutputDevices() async {
-    // TODO: Implement via CoreMIDI FFI on macOS/iOS.
-    return [];
+  Future<List<MidiDeviceDescriptor>> listOutputDevices() async {
+    if (_backend == null) return [];
+    return _backend.listDevices();
   }
 
   /// Open a MIDI output device.
   Future<void> open(String deviceId) async {
     _deviceId = deviceId;
     _isOpen = true;
-    // TODO: Implement via CoreMIDI.
+    await _backend?.openDevice(deviceId);
   }
 
   /// Send a Note On message.
@@ -162,23 +217,23 @@ class MidiOutput {
   }
 
   void _sendBytes(List<int> bytes) {
-    // TODO: Send via CoreMIDI native bridge.
-    // For now, this is a stub. The actual implementation will use
-    // dart:ffi to call MIDISend() on macOS/iOS.
-    final _ = Uint8List.fromList(bytes);
+    final data = Uint8List.fromList(bytes);
+    lastBytes = data;
+    _backend?.sendBytes(data);
   }
 
   /// Close the MIDI device.
-  void close() {
+  Future<void> close() async {
     _isOpen = false;
     _deviceId = null;
-    // TODO: Close CoreMIDI port.
+    await _backend?.closeDevice();
   }
 
-  void dispose() => close();
+  Future<void> dispose() => close();
 }
 
-/// Describes a MIDI output device.
+/// Describes a MIDI output device (legacy compatibility).
+/// Prefer [MidiDeviceDescriptor] for new code.
 class MidiDevice {
   final String id;
   final String name;
