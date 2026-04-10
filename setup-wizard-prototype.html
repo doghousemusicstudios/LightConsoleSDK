@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShowUp Console Setup Wizard — Interactive Prototype</title>
+<style>
+  :root {
+    --bg-deepest: #06060f;
+    --bg-deep: #0d0d1a;
+    --bg-surface: #14142a;
+    --bg-elevated: #1c1c3a;
+    --bg-hover: #24244a;
+    --primary: #7c3aed;
+    --primary-glow: rgba(124, 58, 237, 0.3);
+    --primary-soft: rgba(124, 58, 237, 0.15);
+    --console-blue: #3b82f6;
+    --console-glow: rgba(59, 130, 246, 0.3);
+    --shared-green: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --success: #10b981;
+    --ma-gold: #d4a843;
+    --etc-teal: #22d3ee;
+    --chamsys-orange: #f97316;
+    --onyx-red: #ef4444;
+    --text-primary: #e5e7eb;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --border: rgba(255,255,255,0.06);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-lg: 16px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+    background: var(--bg-deepest); color: var(--text-primary); line-height: 1.6;
+    min-height: 100vh;
+  }
+  code {
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 11px;
+    background: var(--bg-deep); padding: 2px 6px; border-radius: 4px;
+    color: var(--shared-green);
+  }
+
+  /* Top bar */
+  .top-bar {
+    height: 48px; background: var(--bg-deep); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 16px; gap: 12px;
+  }
+  .logo {
+    font-weight: 700; font-size: 15px; letter-spacing: -0.3px;
+    background: linear-gradient(135deg, var(--primary), #a78bfa);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .stage-name { font-size: 13px; color: var(--text-secondary); }
+  .spacer { flex: 1; }
+
+  /* Console selector bar */
+  .console-selector {
+    background: var(--bg-deep); border-bottom: 1px solid var(--border);
+    padding: 10px 16px; display: flex; align-items: center; gap: 8px;
+  }
+  .console-selector label { font-size: 12px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .console-btn {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    cursor: pointer; border: 2px solid var(--border); background: var(--bg-surface);
+    color: var(--text-muted); transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+  }
+  .console-btn:hover { border-color: var(--text-muted); color: var(--text-secondary); }
+  .console-btn.active { color: white; }
+  .console-btn.active.ma { border-color: var(--ma-gold); background: rgba(212,168,67,0.15); color: var(--ma-gold); }
+  .console-btn.active.etc { border-color: var(--etc-teal); background: rgba(34,211,238,0.15); color: var(--etc-teal); }
+  .console-btn.active.mq { border-color: var(--chamsys-orange); background: rgba(249,115,22,0.15); color: var(--chamsys-orange); }
+  .console-btn.active.onyx { border-color: var(--onyx-red); background: rgba(239,68,68,0.15); color: var(--onyx-red); }
+  .console-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* Main content */
+  .main { max-width: 740px; margin: 0 auto; padding: 32px 24px; }
+
+  /* Discovery notification */
+  .discovery-notif {
+    background: var(--bg-elevated); border: 1px solid var(--console-glow);
+    border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 20px var(--console-glow);
+    animation: slideDown 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative; overflow: hidden;
+  }
+  @keyframes slideDown { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
+  .discovery-notif .radar {
+    position: absolute; top: -30px; right: -30px; width: 60px; height: 60px;
+    border-radius: 50%; border: 2px solid var(--console-blue);
+    animation: radar 2s ease-out infinite; opacity: 0;
+  }
+  @keyframes radar { 0% { transform: scale(0.3); opacity: 0.8; } 100% { transform: scale(2.5); opacity: 0; } }
+  .disc-header { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+  .disc-icon {
+    width: 48px; height: 48px; border-radius: 14px; display: flex;
+    align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: white;
+  }
+  .disc-title { font-size: 16px; font-weight: 700; }
+  .disc-subtitle { font-size: 13px; color: var(--text-secondary); }
+  .disc-details {
+    background: var(--bg-deep); border-radius: var(--radius-sm);
+    padding: 14px; margin: 14px 0; font-size: 13px;
+  }
+  .disc-row { display: flex; justify-content: space-between; padding: 4px 0; }
+  .disc-label { color: var(--text-muted); }
+  .disc-value { color: var(--text-primary); font-weight: 500; }
+  .disc-actions { display: flex; gap: 10px; margin-top: 16px; }
+
+  /* Requirements callout */
+  .req-callout {
+    background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25);
+    border-radius: var(--radius-sm); padding: 14px; margin: 14px 0;
+    font-size: 12px; color: var(--text-secondary);
+  }
+  .req-callout .req-title { color: var(--warning); font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+  .req-callout ul { padding-left: 16px; margin-top: 6px; }
+  .req-callout li { margin-bottom: 4px; }
+  .req-callout.success { background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.25); }
+  .req-callout.success .req-title { color: var(--success); }
+  .req-callout.error { background: rgba(239,68,68,0.08); border-color: rgba(239,68,68,0.25); }
+  .req-callout.error .req-title { color: var(--danger); }
+
+  /* Wizard progress */
+  .wizard-progress {
+    display: flex; align-items: center; margin-bottom: 32px; padding: 0 20px;
+  }
+  .wiz-step { display: flex; align-items: center; gap: 8px; }
+  .wiz-dot {
+    width: 36px; height: 36px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; font-size: 14px;
+    font-weight: 700; border: 2px solid var(--border); color: var(--text-muted);
+    background: var(--bg-surface); transition: all 0.3s; flex-shrink: 0;
+  }
+  .wiz-dot.active { border-color: var(--primary); color: white; background: var(--primary); box-shadow: 0 0 14px var(--primary-glow); }
+  .wiz-dot.done { border-color: var(--success); color: white; background: var(--success); }
+  .wiz-line { flex: 1; height: 2px; background: var(--border); margin: 0 8px; transition: all 0.3s; }
+  .wiz-line.done { background: var(--success); }
+  .wiz-label { font-size: 10px; color: var(--text-muted); margin-top: 4px; text-align: center; }
+  .wiz-label.active { color: var(--text-primary); }
+
+  /* Step panels */
+  .step { display: none; animation: fadeIn 0.3s ease; }
+  .step.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .step-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .step-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px;
+    border-radius: var(--radius-sm); font-size: 14px; font-weight: 600;
+    border: none; cursor: pointer; transition: all 0.2s;
+  }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: #6d28d9; transform: translateY(-1px); box-shadow: 0 4px 12px var(--primary-glow); }
+  .btn-ghost { background: transparent; color: var(--text-secondary); }
+  .btn-ghost:hover { color: var(--text-primary); background: var(--bg-elevated); }
+  .btn-console { background: rgba(59,130,246,0.15); color: var(--console-blue); border: 1px solid rgba(59,130,246,0.3); }
+  .btn-console:hover { background: rgba(59,130,246,0.25); }
+  .btn-success { background: var(--success); color: white; }
+  .step-nav { display: flex; justify-content: space-between; margin-top: 28px; }
+
+  /* Mode cards */
+  .mode-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0; }
+  .mode-card {
+    background: var(--bg-surface); border: 2px solid var(--border);
+    border-radius: var(--radius); padding: 22px; cursor: pointer;
+    transition: all 0.3s; text-align: center;
+  }
+  .mode-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  .mode-card.selected { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 20px var(--primary-glow); }
+  .mode-card.disabled { opacity: 0.4; pointer-events: none; }
+  .mode-icon { font-size: 36px; margin-bottom: 12px; display: block; }
+  .mode-name { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .mode-desc { font-size: 11px; color: var(--text-secondary); line-height: 1.5; }
+  .mode-best { font-size: 10px; color: var(--primary); margin-top: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+
+  /* Universe grid */
+  .uni-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0; }
+  .uni-tile {
+    aspect-ratio: 1.3; border-radius: var(--radius-sm); border: 2px solid var(--border);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden;
+  }
+  .uni-tile:hover { border-color: var(--text-muted); transform: scale(1.03); }
+  .uni-tile.showup { border-color: var(--primary); background: var(--primary-soft); }
+  .uni-tile.console { border-color: var(--console-blue); background: rgba(59,130,246,0.1); }
+  .uni-tile.shared { border-color: var(--shared-green); background: rgba(16,185,129,0.1); }
+  .uni-tile.inactive { opacity: 0.4; }
+  .uni-num { font-size: 20px; font-weight: 800; margin-bottom: 2px; }
+  .uni-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-secondary); }
+  .uni-tile.showup .uni-label { color: var(--primary); }
+  .uni-tile.console .uni-label { color: var(--console-blue); }
+  .uni-tile.shared .uni-label { color: var(--shared-green); }
+  .uni-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--bg-deep); overflow: hidden; }
+  .uni-bar-fill { height: 100%; transition: width 0.3s; }
+  .uni-tile.showup .uni-bar-fill { background: var(--primary); }
+  .uni-tile.console .uni-bar-fill { background: var(--console-blue); }
+  .uni-tile.shared .uni-bar-fill { background: var(--shared-green); }
+  .uni-legend { display: flex; gap: 20px; justify-content: center; margin-top: 12px; font-size: 12px; color: var(--text-secondary); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; vertical-align: middle; }
+
+  /* Form fields */
+  .field-group { margin-bottom: 16px; }
+  .field-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .field-label { font-size: 13px; color: var(--text-secondary); min-width: 110px; }
+  .field-select, .field-input {
+    background: var(--bg-deep); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 10px 14px; color: var(--text-primary); font-size: 13px; min-width: 200px;
+  }
+  .field-select { appearance: none; cursor: pointer; }
+  .field-select:focus, .field-input:focus { outline: none; border-color: var(--primary); }
+  .field-input { width: 140px; min-width: unset; }
+
+  /* Feature/limitation pills */
+  .feature-pills { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+  .pill {
+    font-size: 11px; padding: 4px 10px; border-radius: 6px; font-weight: 500;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .pill.yes { background: rgba(16,185,129,0.12); color: var(--success); border: 1px solid rgba(16,185,129,0.25); }
+  .pill.no { background: rgba(239,68,68,0.08); color: var(--danger); border: 1px solid rgba(239,68,68,0.2); }
+  .pill.partial { background: rgba(245,158,11,0.1); color: var(--warning); border: 1px solid rgba(245,158,11,0.25); }
+  .pill.info { background: rgba(59,130,246,0.1); color: var(--console-blue); border: 1px solid rgba(59,130,246,0.25); }
+
+  /* Celebration */
+  .celebration { text-align: center; padding: 32px 0; }
+  .cele-icon { font-size: 56px; margin-bottom: 16px; animation: bounce 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes bounce { 0% { transform: scale(0); opacity: 0; } 50% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }
+  .cele-title {
+    font-size: 28px; font-weight: 800; margin-bottom: 8px;
+    background: linear-gradient(135deg, var(--primary), var(--console-blue));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .cele-sub { font-size: 14px; color: var(--text-secondary); margin-bottom: 24px; max-width: 400px; margin-left: auto; margin-right: auto; }
+
+  /* Summary card */
+  .summary-card {
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px; text-align: left; max-width: 420px; margin: 0 auto 24px;
+  }
+  .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-label { color: var(--text-muted); }
+  .summary-value { font-weight: 600; }
+
+  /* Card */
+  .card {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 18px; margin-bottom: 14px;
+  }
+  .card h3 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
+  .card p { font-size: 12px; color: var(--text-secondary); }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .mode-grid { grid-template-columns: 1fr; }
+    .uni-grid { grid-template-columns: repeat(4, 1fr); }
+    .field-row { flex-wrap: wrap; }
+  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="top-bar">
+  <span class="logo">ShowUp</span>
+  <span class="stage-name">Console Setup Wizard</span>
+  <span class="spacer"></span>
+  <span style="font-size:12px; color:var(--text-muted);">Interactive Prototype</span>
+</div>
+
+<!-- Console Selector -->
+<div class="console-selector">
+  <label>Simulate:</label>
+  <button class="console-btn active ma" onclick="selectConsole('ma')"><span class="console-dot" style="background:var(--ma-gold)"></span>GrandMA3</button>
+  <button class="console-btn etc" onclick="selectConsole('etc')"><span class="console-dot" style="background:var(--etc-teal)"></span>ETC Eos</button>
+  <button class="console-btn mq" onclick="selectConsole('mq')"><span class="console-dot" style="background:var(--chamsys-orange)"></span>ChamSys MQ</button>
+  <button class="console-btn onyx" onclick="selectConsole('onyx')"><span class="console-dot" style="background:var(--onyx-red)"></span>Onyx</button>
+  <span class="spacer"></span>
+  <button class="btn btn-ghost" onclick="resetWizard()" style="font-size:12px; padding:6px 12px;">Reset Wizard</button>
+</div>
+
+<div class="main">
+
+  <!-- ═══ STEP 0: DISCOVERY ═══ -->
+  <div class="step active" id="step-0">
+    <div class="step-title">Auto-Discovery</div>
+    <div class="step-sub">ShowUp scans your network for lighting consoles via ArtPoll broadcast.</div>
+
+    <div class="card" style="margin-bottom:20px;">
+      <h3>How Discovery Works</h3>
+      <p>ShowUp sends ArtPoll packets to 255.255.255.255:6454 and common subnet broadcasts. Consoles respond with ArtPollReply containing their OEM code, name, active universes, and IP address. ShowUp matches the OEM code against its built-in console database.</p>
+      <p style="margin-top:8px;">Discovery is automatic — it runs whenever ShowUp is connected to a network. No user action needed.</p>
+    </div>
+
+    <div style="text-align:center; margin: 24px 0;">
+      <button class="btn btn-console" onclick="simulateDiscovery()" id="discoverBtn" style="padding:12px 28px; font-size:15px;">
+        Simulate Console Discovery
+      </button>
+    </div>
+
+    <div id="discoveryResult" style="display:none;"></div>
+  </div>
+
+  <!-- ═══ STEP 1: MODE SELECTION ═══ -->
+  <div class="step" id="step-1">
+    <div class="wizard-progress" id="wizProgress"></div>
+
+    <div class="step-title" id="step1Title">How should ShowUp work with your console?</div>
+    <div class="step-sub">Pick the mode that fits your workflow. You can change this later in Stage Setup.</div>
+
+    <div id="modeRecommendation" class="req-callout success" style="display:none;"></div>
+
+    <div class="mode-grid" id="modeGrid">
+      <div class="mode-card" onclick="selectMode(this, 'sideBySide')" id="mode-side">
+        <span class="mode-icon">&#x21C6;</span>
+        <div class="mode-name">Side by Side</div>
+        <div class="mode-desc">Separate universes. ShowUp controls its fixtures, the console controls its own. No overlap.</div>
+        <div class="mode-best" id="side-best"></div>
+      </div>
+      <div class="mode-card" onclick="selectMode(this, 'trigger')" id="mode-trigger">
+        <span class="mode-icon">&#x26A1;</span>
+        <div class="mode-name">Trigger Mode</div>
+        <div class="mode-desc">ShowUp sends cue commands to the console. ShowUp's Perform screen becomes the control surface.</div>
+        <div class="mode-best" id="trigger-best"></div>
+      </div>
+      <div class="mode-card" onclick="selectMode(this, 'layer')" id="mode-layer">
+        <span class="mode-icon">&#x25D2;</span>
+        <div class="mode-name">Layer Mode</div>
+        <div class="mode-desc">ShowUp adds a reactive layer via sACN priority. Console output always takes precedence.</div>
+        <div class="mode-best" id="layer-best"></div>
+      </div>
+    </div>
+
+    <div id="modeFeatures" style="margin-top:16px;"></div>
+
+    <div class="step-nav">
+      <button class="btn btn-ghost" onclick="goStep(0)">Back to Discovery</button>
+      <button class="btn btn-primary" onclick="goStep(2)" id="step1Next">Continue</button>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 2: UNIVERSE ASSIGNMENT ═══ -->
+  <div class="step" id="step-2">
+    <div class="wizard-progress" id="wizProgress2"></div>
+
+    <div class="step-title">Universe Assignment</div>
+    <div class="step-sub" id="step2Sub">Tap any universe to cycle its ownership. Detected console universes are pre-assigned.</div>
+
+    <div id="triggerModeNote" class="req-callout" style="display:none;">
+      <div class="req-title">Trigger Mode — No DMX Output</div>
+      <p>In Trigger Mode, ShowUp doesn't output DMX. Universe assignment is for monitoring only — ShowUp will read these universes via sACN to capture looks.</p>
+    </div>
+
+    <div class="uni-grid" id="uniGrid"></div>
+
+    <div class="uni-legend">
+      <span><span class="legend-dot" style="background:var(--primary)"></span> ShowUp</span>
+      <span><span class="legend-dot" style="background:var(--console-blue)"></span> Console</span>
+      <span><span class="legend-dot" style="background:var(--shared-green)"></span> Shared</span>
+    </div>
+
+    <div id="prioritySection" style="margin-top:20px; display:none;">
+      <div class="card">
+        <h3>sACN Priority (Shared & Layer universes)</h3>
+        <p style="margin-bottom:10px;">Lower priority means the console wins when both are outputting. Console default is 100.</p>
+        <div class="field-row">
+          <span class="field-label">ShowUp Priority</span>
+          <input type="range" min="0" max="200" value="50" style="flex:1; accent-color:var(--primary);" oninput="document.getElementById('priVal').textContent=this.value" id="priSlider">
+          <span id="priVal" style="font-size:15px; font-weight:700; min-width:35px; text-align:right;">50</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align:center; margin-top:12px;">
+      <button class="btn btn-ghost" onclick="autoAssignUniverses()" style="font-size:12px;">Auto-Assign (avoid console universes)</button>
+    </div>
+
+    <div class="step-nav">
+      <button class="btn btn-ghost" onclick="goStep(1)">Back</button>
+      <button class="btn btn-primary" onclick="goStep(3)">Continue</button>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 3: CONNECTION ═══ -->
+  <div class="step" id="step-3">
+    <div class="wizard-progress" id="wizProgress3"></div>
+
+    <div class="step-title" id="step3Title">Console Connection</div>
+    <div class="step-sub" id="step3Sub">We'll connect to your console using the best available protocol.</div>
+
+    <div class="card" id="connectionCard">
+      <div class="field-group">
+        <div class="field-row">
+          <span class="field-label">Console</span>
+          <select class="field-select" id="consoleSelect" onchange="updateConnectionFields()">
+            <option value="ma">GrandMA3 Light</option>
+            <option value="etc">ETC Eos</option>
+            <option value="mq">ChamSys MagicQ</option>
+            <option value="onyx">Obsidian Onyx</option>
+          </select>
+        </div>
+        <div class="field-row" id="protocolRow">
+          <span class="field-label">Protocol</span>
+          <select class="field-select" id="protocolSelect"></select>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Console IP</span>
+          <input class="field-input" id="ipField" value="192.168.1.100" style="width:160px;">
+        </div>
+        <div class="field-row" id="portRow">
+          <span class="field-label" id="portLabel">Port</span>
+          <input class="field-input" id="portField" value="8000" style="width:100px;">
+        </div>
+        <div class="field-row" id="telnetPortRow" style="display:none;">
+          <span class="field-label">Telnet Port</span>
+          <input class="field-input" id="telnetPortField" value="2323" style="width:100px;">
+        </div>
+      </div>
+    </div>
+
+    <div id="consoleRequirements"></div>
+
+    <div id="consoleCapabilities" style="margin-top:16px;"></div>
+
+    <div style="margin-top:16px; display:flex; align-items:center; gap:12px;">
+      <button class="btn btn-console" onclick="testConnection()" id="testBtn">Test Connection</button>
+      <span id="testResult" style="font-size:13px;"></span>
+    </div>
+
+    <div id="pluginSection" style="display:none; margin-top:16px;"></div>
+
+    <div class="step-nav">
+      <button class="btn btn-ghost" onclick="goStep(2)">Back</button>
+      <button class="btn btn-primary" onclick="goStep(4)">Continue</button>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 4: RIG IMPORT ═══ -->
+  <div class="step" id="step-4">
+    <div class="wizard-progress" id="wizProgress4"></div>
+
+    <div class="step-title">Fixture Import</div>
+    <div class="step-sub" id="step4Sub">Import the console's fixture patch so ShowUp knows what's on the network.</div>
+
+    <div id="importOptions"></div>
+
+    <div id="importPreview" style="display:none; margin-top:16px;"></div>
+
+    <div class="step-nav">
+      <button class="btn btn-ghost" onclick="goStep(3)">Back</button>
+      <button class="btn btn-primary" onclick="goStep(5)">Continue</button>
+    </div>
+  </div>
+
+  <!-- ═══ STEP 5: SUMMARY ═══ -->
+  <div class="step" id="step-5">
+    <div class="wizard-progress" id="wizProgress5"></div>
+
+    <div class="celebration">
+      <div class="cele-icon">&#x1F91D;</div>
+      <div class="cele-title">You're in sync</div>
+      <div class="cele-sub" id="celeSub">ShowUp and your console are ready to perform together.</div>
+
+      <div class="summary-card" id="summaryCard"></div>
+
+      <div id="nextStepsSection"></div>
+
+      <div style="display:flex; gap:12px; justify-content:center; margin-top:24px;">
+        <button class="btn btn-primary" style="padding:12px 28px;">Start Performing</button>
+        <button class="btn btn-ghost" onclick="goStep(1)">Edit Setup</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Console profiles ──
+const profiles = {
+  ma: {
+    name: 'GrandMA3 Light', manufacturer: 'MA Lighting',
+    color: 'var(--ma-gold)', dotClass: 'ma', discIcon: 'MA',
+    ip: '192.168.1.100', oem: '0x0001',
+    activeUniverses: [1,2,3,4],
+    protocols: [
+      { value: 'osc', label: 'OSC (UDP)', port: 8000, primary: true },
+      { value: 'midi', label: 'MIDI Notes', port: null },
+    ],
+    requirements: [
+      { text: 'OSC enabled in MA3 network settings', type: 'config' },
+      { text: 'OSC "In & Out" entry configured with ShowUp\'s IP', type: 'config' },
+    ],
+    optionalSetup: {
+      title: 'ShowUp Companion Plugin (recommended)',
+      desc: 'Install the Lua plugin on your MA3 for bidirectional fader feedback, active cue reporting, and console-driven moment sync.',
+      steps: ['Copy ShowUpCompanion.lua to /ma/ma3_library/datapools/plugins/', 'Add OSC "In & Out" entry pointing to ShowUp\'s IP', 'Plugin auto-starts — no further configuration needed'],
+      without: 'Without the plugin, ShowUp can send commands but cannot read fader positions or know when cues fire.'
+    },
+    capabilities: [
+      { label: 'Fire cues', status: 'yes' },
+      { label: 'Set faders', status: 'yes' },
+      { label: 'Fader feedback', status: 'partial', note: 'Requires Companion Plugin' },
+      { label: 'Cue events', status: 'partial', note: 'Requires Companion Plugin' },
+      { label: 'MVR import', status: 'yes' },
+      { label: 'GDTF import', status: 'yes' },
+      { label: 'MIDI Show Control', status: 'no' },
+      { label: 'sACN priority', status: 'yes' },
+    ],
+    importOptions: [
+      { id: 'mvr', label: 'Import MVR File', desc: 'Native MVR export from MA3. Includes fixtures, addresses, groups, and GDTF profiles.', icon: '&#x1F4E6;', primary: true },
+      { id: 'gdtf', label: 'Import GDTF Fixtures', desc: 'Individual fixture type files. MA co-created the GDTF standard.', icon: '&#x1F4A1;' },
+      { id: 'csv', label: 'Import Patch CSV', desc: 'Paste or import a patch list as CSV/TSV from any source.', icon: '&#x1F4CB;' },
+      { id: 'skip', label: 'Skip — I\'ll patch manually', desc: 'Set up fixtures later in Stage Setup.', icon: '&#x23ED;' },
+    ],
+    modeRec: 'sideBySide', modeRecText: 'Recommended for MA3: Side by Side or Layer mode. The Companion Plugin makes all modes viable.',
+    modeBests: { side: 'Best with separate rigs', trigger: 'Good with plugin', layer: 'Natural for touring' },
+    discoveryFields: { protocol: 'Art-Net / OSC', oemLabel: 'OEM 0x0001' },
+    summaryProtocol: 'OSC on port 8000',
+    grade: 'A-',
+  },
+  etc: {
+    name: 'ETC Eos', manufacturer: 'ETC',
+    color: 'var(--etc-teal)', dotClass: 'etc', discIcon: 'Eos',
+    ip: '10.101.1.1', oem: '0x0068',
+    activeUniverses: [1,2],
+    protocols: [
+      { value: 'osc-tcp', label: 'OSC (TCP — recommended)', port: 3032, primary: true },
+      { value: 'osc-3p', label: 'OSC Third-Party (TCP SLIP)', port: 3037 },
+      { value: 'msc', label: 'MIDI Show Control', port: null },
+    ],
+    requirements: [
+      { text: 'Show Control > OSC RX enabled in Eos Setup', type: 'config' },
+      { text: 'Show Control > OSC TX enabled for feedback', type: 'config' },
+      { text: 'For third-party port: Setup > Device > Network > Third Party OSC', type: 'config' },
+    ],
+    optionalSetup: null,
+    capabilities: [
+      { label: 'Fire cues', status: 'yes' },
+      { label: 'Set faders', status: 'yes' },
+      { label: 'Fader feedback', status: 'yes', note: 'Native, ~10Hz' },
+      { label: 'Cue events', status: 'yes', note: 'Native /eos/out/event/' },
+      { label: 'Palette query', status: 'yes', note: 'Color, focus, beam palettes via OSC' },
+      { label: 'MVR import', status: 'yes', note: 'Eos v3.2+' },
+      { label: 'GDTF import', status: 'partial', note: 'No multi-cell' },
+      { label: 'MIDI Show Control', status: 'yes', note: 'Up to 32 sources' },
+      { label: 'sACN priority', status: 'yes', note: 'ETC invented sACN' },
+    ],
+    importOptions: [
+      { id: 'mvr', label: 'Import MVR File', desc: 'Export from Eos v3.2+. Includes fixtures and addresses.', icon: '&#x1F4E6;', primary: true },
+      { id: 'csv', label: 'Import CSV Patch', desc: 'File > Export > CSV from Eos. Includes cue data + channel values.', icon: '&#x1F4CB;' },
+      { id: 'osc-query', label: 'Query Console Live', desc: 'ShowUp queries patch, groups, and palettes directly via OSC. Console must be connected.', icon: '&#x1F4E1;', primary: true },
+      { id: 'skip', label: 'Skip — I\'ll patch manually', desc: 'Set up fixtures later in Stage Setup.', icon: '&#x23ED;' },
+    ],
+    modeRec: 'any', modeRecText: 'Eos supports all modes equally well. Best integration of any console — full bidirectional OSC.',
+    modeBests: { side: 'Full support', trigger: 'Best — cue events + feedback', layer: 'Full support' },
+    discoveryFields: { protocol: 'Art-Net / sACN / OSC', oemLabel: 'OEM 0x0068' },
+    summaryProtocol: 'OSC TCP on port 3032',
+    grade: 'A+',
+  },
+  mq: {
+    name: 'ChamSys MagicQ', manufacturer: 'ChamSys',
+    color: 'var(--chamsys-orange)', dotClass: 'mq', discIcon: 'MQ',
+    ip: '192.168.1.50', oem: 'ChamSys',
+    activeUniverses: [1,2,3],
+    protocols: [
+      { value: 'osc', label: 'OSC (UDP)', port: 6171, primary: true },
+      { value: 'crep', label: 'CREP (Binary UDP)', port: 6553 },
+      { value: 'midi', label: 'MIDI Notes', port: null },
+    ],
+    requirements: [
+      { text: 'OSC TX/RX ports set in Setup > View Settings > Network (must be >1024)', type: 'config' },
+      { text: 'ChamSys hardware connected for "Unlocked Mode" (PC version)', type: 'hardware' },
+      { text: 'Not MQ40 or MQ40N (OSC not supported on these models)', type: 'warning' },
+    ],
+    optionalSetup: {
+      title: 'K Macro Cue Notifications (recommended)',
+      desc: 'Add K macros to your cue stacks so ShowUp knows exactly when each cue fires.',
+      steps: ['In each cue\'s macro field, add: K/showup/cue/fired,{cue_number}', 'This sends an OSC message to ShowUp when that cue executes', 'Copy-paste templates provided in companion_plugins/chamsys/'],
+      without: 'Without K macros, ShowUp uses /feedback/pb+exec (playback-level only, not per-cue).'
+    },
+    capabilities: [
+      { label: 'Fire cues (PB 1-10)', status: 'yes' },
+      { label: 'Fire cues (PB 11+)', status: 'partial', note: 'Requires AUTOM config' },
+      { label: 'Set faders', status: 'yes' },
+      { label: 'Fader feedback', status: 'yes', note: 'Built-in /feedback/pb+exec' },
+      { label: 'Cue events', status: 'partial', note: 'Per-cue via K macro' },
+      { label: 'MIDI transmit', status: 'yes', note: 'Notes on playback operation' },
+      { label: 'MVR import', status: 'yes' },
+      { label: 'GDTF import', status: 'yes', note: 'First major console to support it' },
+      { label: 'Palette CSV export', status: 'yes', note: 'Color, position, beam' },
+      { label: 'sACN priority', status: 'yes' },
+    ],
+    importOptions: [
+      { id: 'mvr', label: 'Import MVR File', desc: 'Export from MagicQ. Includes fixtures and universe assignments.', icon: '&#x1F4E6;', primary: true },
+      { id: 'gdtf', label: 'Import GDTF Fixtures', desc: 'ChamSys was the first major console to support GDTF.', icon: '&#x1F4A1;' },
+      { id: 'csv', label: 'Import CSV Palette', desc: 'Export palettes as CSV from MagicQ for color/position import.', icon: '&#x1F3A8;' },
+      { id: 'csv-patch', label: 'Import Patch CSV', desc: 'Export patch list as CSV/TSV.', icon: '&#x1F4CB;' },
+      { id: 'skip', label: 'Skip — I\'ll patch manually', desc: 'Set up fixtures later in Stage Setup.', icon: '&#x23ED;' },
+    ],
+    modeRec: 'sideBySide', modeRecText: 'Recommended for MQ: Side by Side or Trigger. Built-in feedback makes Trigger more viable than expected.',
+    modeBests: { side: 'Avoids 10-PB limit', trigger: 'Good with K macros', layer: 'Full support' },
+    discoveryFields: { protocol: 'Art-Net / sACN / OSC', oemLabel: 'ChamSys OEM' },
+    summaryProtocol: 'OSC UDP + CREP',
+    grade: 'B+',
+  },
+  onyx: {
+    name: 'Obsidian Onyx', manufacturer: 'Obsidian Control Systems',
+    color: 'var(--onyx-red)', dotClass: 'onyx', discIcon: 'NX',
+    ip: '192.168.1.200', oem: 'Obsidian',
+    activeUniverses: [1,2],
+    protocols: [
+      { value: 'telnet', label: 'Telnet API (recommended)', port: 2323, primary: true },
+      { value: 'msc', label: 'MIDI Show Control', port: null },
+      { value: 'osc', label: 'OSC (ShowCockpit)', port: 2323 },
+    ],
+    requirements: [
+      { text: 'Onyx Manager must be running on the controller', type: 'hardware' },
+      { text: 'Telnet Server enabled in Onyx Manager', type: 'config' },
+      { text: 'NOVA+ license or higher for full OSC/MIDI (FREE mode: 5-min trial with random delays)', type: 'warning' },
+    ],
+    optionalSetup: null,
+    capabilities: [
+      { label: 'Fire any cuelist', status: 'yes', note: 'Via Telnet GTQ — no fader limit' },
+      { label: 'Go to specific cue', status: 'yes', note: 'Telnet GTQ {list},{cue}' },
+      { label: 'Set cuelist level', status: 'yes', note: 'Telnet SQL — any cuelist, 0-255' },
+      { label: 'Get cuelist names', status: 'yes', note: 'Telnet QLList — populates Quick Actions' },
+      { label: 'Active state polling', status: 'yes', note: 'Telnet QLActive at 1Hz' },
+      { label: 'MIDI Show Control', status: 'yes' },
+      { label: 'Fader feedback (OSC)', status: 'partial', note: 'Main PBs only via ShowCockpit' },
+      { label: 'MVR import', status: 'no' },
+      { label: 'GDTF import', status: 'no' },
+      { label: 'Palette/preset export', status: 'no' },
+      { label: 'MIDI output', status: 'no', note: 'Receive only' },
+      { label: 'sACN priority', status: 'yes' },
+    ],
+    importOptions: [
+      { id: 'telnet-import', label: 'Import Cuelist Names via Telnet', desc: 'Connects to Onyx Manager and reads all cuelist names and numbers. Creates Console Quick Action buttons.', icon: '&#x1F4E1;', primary: true },
+      { id: 'csv-patch', label: 'Import Patch CSV', desc: 'Export patch from Onyx as CSV/text. The only rig import path.', icon: '&#x1F4CB;' },
+      { id: 'skip', label: 'Skip — I\'ll patch manually', desc: 'Set up fixtures later in Stage Setup.', icon: '&#x23ED;' },
+    ],
+    modeRec: 'trigger', modeRecText: 'Recommended for Onyx: Trigger Mode via Telnet + MSC. Telnet bypasses the 10-fader OSC limit.',
+    modeBests: { side: 'Good', trigger: 'Best — Telnet + MSC', layer: 'DMX sniff only' },
+    discoveryFields: { protocol: 'Art-Net / sACN', oemLabel: 'Obsidian OEM' },
+    summaryProtocol: 'Telnet on port 2323',
+    grade: 'B-',
+  }
+};
+
+let currentConsole = 'ma';
+let currentStep = 0;
+let selectedMode = null;
+
+function selectConsole(id) {
+  currentConsole = id;
+  document.querySelectorAll('.console-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.console-btn.${id}`).classList.add('active');
+  resetWizard();
+}
+
+function resetWizard() {
+  currentStep = 0;
+  selectedMode = null;
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById('step-0').classList.add('active');
+  document.getElementById('discoveryResult').style.display = 'none';
+  document.getElementById('discoverBtn').style.display = '';
+}
+
+function simulateDiscovery() {
+  const p = profiles[currentConsole];
+  const btn = document.getElementById('discoverBtn');
+  btn.textContent = 'Scanning network...';
+  btn.disabled = true;
+
+  setTimeout(() => {
+    btn.style.display = 'none';
+    const result = document.getElementById('discoveryResult');
+    result.style.display = 'block';
+    result.innerHTML = `
+      <div class="discovery-notif">
+        <div class="radar"></div>
+        <div class="disc-header">
+          <div class="disc-icon" style="background: linear-gradient(135deg, ${p.color}, ${p.color}); opacity:0.9;">${p.discIcon}</div>
+          <div>
+            <div class="disc-title">Console Found</div>
+            <div class="disc-subtitle">${p.name} on your network</div>
+          </div>
+        </div>
+        <div class="disc-details">
+          <div class="disc-row"><span class="disc-label">Manufacturer</span><span class="disc-value">${p.manufacturer}</span></div>
+          <div class="disc-row"><span class="disc-label">IP Address</span><span class="disc-value">${p.ip}</span></div>
+          <div class="disc-row"><span class="disc-label">Active Universes</span><span class="disc-value">${p.activeUniverses.join(', ')}</span></div>
+          <div class="disc-row"><span class="disc-label">Detection</span><span class="disc-value">${p.discoveryFields.oemLabel} via ArtPoll</span></div>
+          <div class="disc-row"><span class="disc-label">Protocols</span><span class="disc-value">${p.discoveryFields.protocol}</span></div>
+        </div>
+        ${p.requirements.filter(r=>r.type==='hardware').map(r=>`
+          <div class="req-callout" style="margin-bottom:12px;">
+            <div class="req-title">Prerequisite</div>
+            <p>${r.text}</p>
+          </div>
+        `).join('')}
+        <div class="disc-actions">
+          <button class="btn btn-primary" onclick="goStep(1)" style="flex:1; justify-content:center;">Set Up Coexistence</button>
+          <button class="btn btn-ghost" style="flex:0;">Later</button>
+        </div>
+      </div>
+    `;
+  }, 1500);
+}
+
+function buildProgress(activeStep) {
+  const labels = ['Mode', 'Universes', 'Connection', 'Import', 'Done'];
+  let html = '';
+  for (let i = 1; i <= 5; i++) {
+    const cls = i < activeStep ? 'done' : (i === activeStep ? 'active' : '');
+    const icon = i < activeStep ? '&#x2713;' : i;
+    html += `<div class="wiz-step"><div class="wiz-dot ${cls}">${icon}</div></div>`;
+    if (i < 5) html += `<div class="wiz-line ${i < activeStep ? 'done' : ''}"></div>`;
+  }
+  return html;
+}
+
+function goStep(n) {
+  currentStep = n;
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById('step-' + n).classList.add('active');
+
+  if (n >= 1) {
+    for (let i = 1; i <= 5; i++) {
+      const el = document.getElementById('wizProgress' + (i === 1 ? '' : i));
+      if (el) el.innerHTML = buildProgress(n);
+    }
+  }
+
+  if (n === 1) setupModeStep();
+  if (n === 2) setupUniverseStep();
+  if (n === 3) setupConnectionStep();
+  if (n === 4) setupImportStep();
+  if (n === 5) setupSummary();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── Step 1: Mode ──
+function setupModeStep() {
+  const p = profiles[currentConsole];
+  document.getElementById('step1Title').textContent = `How should ShowUp work with your ${p.name}?`;
+
+  const rec = document.getElementById('modeRecommendation');
+  rec.style.display = 'block';
+  rec.innerHTML = `<div class="req-title">Recommendation</div><p>${p.modeRecText}</p>`;
+
+  document.getElementById('side-best').textContent = p.modeBests.side;
+  document.getElementById('trigger-best').textContent = p.modeBests.trigger;
+  document.getElementById('layer-best').textContent = p.modeBests.layer;
+
+  // Reset mode selection
+  document.querySelectorAll('.mode-card').forEach(c => { c.classList.remove('selected', 'disabled'); });
+}
+
+function selectMode(el, mode) {
+  document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedMode = mode;
+
+  // Show mode-specific features
+  const p = profiles[currentConsole];
+  let featureHtml = '<div class="feature-pills">';
+  p.capabilities.forEach(cap => {
+    const cls = cap.status === 'yes' ? 'yes' : cap.status === 'no' ? 'no' : 'partial';
+    const icon = cap.status === 'yes' ? '&#x2713;' : cap.status === 'no' ? '&#x2717;' : '&#x25CB;';
+    featureHtml += `<span class="pill ${cls}">${icon} ${cap.label}</span>`;
+  });
+  featureHtml += '</div>';
+  document.getElementById('modeFeatures').innerHTML = featureHtml;
+}
+
+// ── Step 2: Universe ──
+function setupUniverseStep() {
+  const p = profiles[currentConsole];
+  const isTrigger = selectedMode === 'trigger';
+
+  document.getElementById('step2Sub').textContent = isTrigger
+    ? 'In Trigger Mode, ShowUp monitors these universes for look capture but doesn\'t output DMX.'
+    : `We detected your ${p.name} on universes ${p.activeUniverses.join(', ')}. Tap to change ownership.`;
+
+  document.getElementById('triggerModeNote').style.display = isTrigger ? 'block' : 'none';
+
+  const showPriority = selectedMode === 'layer' || document.querySelectorAll('.uni-tile.shared').length > 0;
+  document.getElementById('prioritySection').style.display = showPriority ? 'block' : 'none';
+
+  buildUniverseGrid();
+}
+
+const roles = ['console','showup','shared','inactive'];
+const roleLabels = { console:'Console', showup:'ShowUp', shared:'Shared', inactive:'Empty' };
+
+function buildUniverseGrid() {
+  const p = profiles[currentConsole];
+  const grid = document.getElementById('uniGrid');
+  grid.innerHTML = '';
+
+  for (let i = 1; i <= 16; i++) {
+    let role = 'inactive';
+    let activity = 0;
+    if (p.activeUniverses.includes(i)) { role = 'console'; activity = 70 - (i * 8); }
+    else if (i === p.activeUniverses[p.activeUniverses.length-1]+1) { role = 'showup'; activity = 60; }
+    else if (i === p.activeUniverses[p.activeUniverses.length-1]+2) { role = 'showup'; activity = 40; }
+
+    const tile = document.createElement('div');
+    tile.className = `uni-tile ${role}`;
+    tile.onclick = () => cycleUniverse(tile);
+    tile.innerHTML = `<div class="uni-num">${i}</div><div class="uni-label">${roleLabels[role]}</div><div class="uni-bar"><div class="uni-bar-fill" style="width:${Math.max(0,activity)}%"></div></div>`;
+    grid.appendChild(tile);
+  }
+}
+
+function cycleUniverse(el) {
+  const current = roles.find(r => el.classList.contains(r)) || 'inactive';
+  const next = roles[(roles.indexOf(current)+1) % roles.length];
+  roles.forEach(r => el.classList.remove(r));
+  el.classList.add(next);
+  el.querySelector('.uni-label').textContent = roleLabels[next];
+  el.style.transform = 'scale(0.93)';
+  setTimeout(() => el.style.transform = '', 150);
+
+  // Show priority if shared or layer
+  const hasShared = document.querySelectorAll('.uni-tile.shared').length > 0;
+  document.getElementById('prioritySection').style.display = (hasShared || selectedMode === 'layer') ? 'block' : 'none';
+}
+
+function autoAssignUniverses() {
+  const p = profiles[currentConsole];
+  const tiles = document.querySelectorAll('.uni-tile');
+  tiles.forEach((tile, idx) => {
+    const uniNum = idx + 1;
+    roles.forEach(r => tile.classList.remove(r));
+    if (p.activeUniverses.includes(uniNum)) {
+      tile.classList.add('console');
+      tile.querySelector('.uni-label').textContent = 'Console';
+    } else if (uniNum <= p.activeUniverses[p.activeUniverses.length-1]+2 && uniNum > p.activeUniverses[p.activeUniverses.length-1]) {
+      tile.classList.add('showup');
+      tile.querySelector('.uni-label').textContent = 'ShowUp';
+    } else {
+      tile.classList.add('inactive');
+      tile.querySelector('.uni-label').textContent = 'Empty';
+    }
+  });
+}
+
+// ── Step 3: Connection ──
+function setupConnectionStep() {
+  const p = profiles[currentConsole];
+  document.getElementById('step3Title').textContent = `Connect to ${p.name}`;
+  document.getElementById('step3Sub').textContent = `ShowUp will use ${p.protocols[0].label} to communicate with your ${p.name}.`;
+
+  // Console select
+  document.getElementById('consoleSelect').value = currentConsole;
+  document.getElementById('ipField').value = p.ip;
+
+  // Protocol dropdown
+  const protSelect = document.getElementById('protocolSelect');
+  protSelect.innerHTML = p.protocols.map(pr =>
+    `<option value="${pr.value}" ${pr.primary?'selected':''}>${pr.label}${pr.primary?' (recommended)':''}</option>`
+  ).join('');
+
+  updateConnectionFields();
+
+  // Requirements
+  const reqHtml = p.requirements.map(r => {
+    const cls = r.type === 'warning' ? 'error' : '';
+    const title = r.type === 'warning' ? 'Important' : r.type === 'hardware' ? 'Prerequisite' : 'Console Setting';
+    return `<div class="req-callout ${cls}"><div class="req-title">${title}</div><p>${r.text}</p></div>`;
+  }).join('');
+  document.getElementById('consoleRequirements').innerHTML = reqHtml;
+
+  // Capabilities
+  let capHtml = '<div class="card"><h3>What ShowUp can do with this console</h3><div class="feature-pills" style="margin-top:10px;">';
+  p.capabilities.forEach(cap => {
+    const cls = cap.status === 'yes' ? 'yes' : cap.status === 'no' ? 'no' : 'partial';
+    const icon = cap.status === 'yes' ? '&#x2713;' : cap.status === 'no' ? '&#x2717;' : '&#x25CB;';
+    const note = cap.note ? ` (${cap.note})` : '';
+    capHtml += `<span class="pill ${cls}" title="${cap.note||''}">${icon} ${cap.label}${note}</span>`;
+  });
+  capHtml += '</div></div>';
+  document.getElementById('consoleCapabilities').innerHTML = capHtml;
+
+  // Plugin section
+  const pluginSec = document.getElementById('pluginSection');
+  if (p.optionalSetup) {
+    pluginSec.style.display = 'block';
+    pluginSec.innerHTML = `
+      <div class="card" style="border-color: rgba(16,185,129,0.3);">
+        <h3 style="color:var(--shared-green);">${p.optionalSetup.title}</h3>
+        <p style="margin-top:4px;">${p.optionalSetup.desc}</p>
+        <ol style="font-size:12px; color:var(--text-secondary); padding-left:16px; margin-top:10px; line-height:1.8;">
+          ${p.optionalSetup.steps.map(s => `<li>${s}</li>`).join('')}
+        </ol>
+        <p style="margin-top:10px; font-size:11px; color:var(--text-muted); font-style:italic;">${p.optionalSetup.without}</p>
+      </div>
+    `;
+  } else {
+    pluginSec.style.display = 'none';
+  }
+
+  // Reset test
+  document.getElementById('testResult').textContent = '';
+}
+
+function updateConnectionFields() {
+  const p = profiles[currentConsole];
+  const protocol = document.getElementById('protocolSelect').value;
+  const protConfig = p.protocols.find(pr => pr.value === protocol);
+
+  if (protConfig && protConfig.port) {
+    document.getElementById('portField').value = protConfig.port;
+    document.getElementById('portRow').style.display = 'flex';
+  } else {
+    document.getElementById('portRow').style.display = protConfig && protConfig.port === null ? 'none' : 'flex';
+  }
+
+  // Telnet port row for Onyx
+  document.getElementById('telnetPortRow').style.display = (currentConsole === 'onyx' && protocol !== 'telnet') ? 'flex' : 'none';
+  document.getElementById('portLabel').textContent = protocol === 'telnet' ? 'Telnet Port' : 'Port';
+}
+
+function testConnection() {
+  const btn = document.getElementById('testBtn');
+  const result = document.getElementById('testResult');
+  btn.disabled = true; btn.textContent = 'Testing...'; result.textContent = '';
+
+  const p = profiles[currentConsole];
+  const protocol = document.getElementById('protocolSelect').value;
+
+  const testMsgs = {
+    ma: { osc: 'Sent /gma3/cmd "Version" — response in 14ms' },
+    etc: { 'osc-tcp': 'TCP connected to port 3032 — Eos v3.4.2 responded in 8ms', 'osc-3p': 'TCP SLIP connected to port 3037 — 10Hz updates active' },
+    mq: { osc: 'Sent /ch/playback/1/level — response in 22ms', crep: 'CREP handshake on port 6553 — 12 playbacks detected' },
+    onyx: { telnet: 'Telnet connected — QLList returned 8 cuelists', msc: 'MIDI device found — MSC channel 1 active' }
+  };
+
+  setTimeout(() => {
+    btn.disabled = false; btn.textContent = 'Test Connection';
+    const msg = (testMsgs[currentConsole] && testMsgs[currentConsole][protocol]) || 'Connected successfully';
+    result.innerHTML = `<span style="color:var(--success);">&#x2713; ${msg}</span>`;
+  }, 1200);
+}
+
+// ── Step 4: Import ──
+function setupImportStep() {
+  const p = profiles[currentConsole];
+  document.getElementById('step4Sub').textContent =
+    currentConsole === 'onyx'
+      ? 'Import cuelist names via Telnet and fixture patch via CSV.'
+      : `Import your ${p.name}'s fixture patch so ShowUp knows what's on the network.`;
+
+  let html = '<div style="display:grid; gap:12px;">';
+  p.importOptions.forEach(opt => {
+    const border = opt.primary ? 'border-color: rgba(16,185,129,0.3);' : '';
+    const badge = opt.primary ? '<span class="pill yes" style="margin-left:auto; font-size:10px;">Recommended</span>' : '';
+    html += `
+      <div class="card" style="cursor:pointer; ${border}" onclick="simulateImport('${opt.id}', this)">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-size:24px;">${opt.icon}</span>
+          <div style="flex:1;">
+            <h3 style="font-size:14px;">${opt.label}</h3>
+            <p>${opt.desc}</p>
+          </div>
+          ${badge}
+        </div>
+      </div>
+    `;
+  });
+  html += '</div>';
+  document.getElementById('importOptions').innerHTML = html;
+  document.getElementById('importPreview').style.display = 'none';
+}
+
+function simulateImport(type, card) {
+  document.querySelectorAll('#importOptions .card').forEach(c => c.style.borderColor = '');
+  card.style.borderColor = 'var(--shared-green)';
+
+  const preview = document.getElementById('importPreview');
+  const p = profiles[currentConsole];
+
+  if (type === 'skip') {
+    preview.style.display = 'block';
+    preview.innerHTML = '<div class="req-callout"><div class="req-title">Skipped</div><p>You can import fixtures later from Stage Setup > Import Rig.</p></div>';
+    return;
+  }
+
+  if (type === 'telnet-import') {
+    preview.style.display = 'block';
+    preview.innerHTML = `
+      <div class="req-callout success">
+        <div class="req-title">Telnet Import Results</div>
+        <p style="margin-top:6px;">Connected to Onyx Manager on port 2323. Found 8 cuelists:</p>
+        <ul style="margin-top:8px;">
+          <li>00001 — Main Show</li>
+          <li>00002 — House Lights</li>
+          <li>00003 — Band Wash</li>
+          <li>00005 — Dance Floor</li>
+          <li>00008 — Specials</li>
+          <li>00010 — Ambient</li>
+          <li>00012 — Strobes</li>
+          <li>00015 — Blackout</li>
+        </ul>
+        <p style="margin-top:8px;">These will appear as Console Quick Action buttons in Perform.</p>
+      </div>
+    `;
+    return;
+  }
+
+  if (type === 'osc-query') {
+    preview.style.display = 'block';
+    preview.innerHTML = `
+      <div class="req-callout success">
+        <div class="req-title">Live Query Results</div>
+        <p style="margin-top:6px;">Queried Eos via OSC on port 3032:</p>
+        <ul style="margin-top:8px;">
+          <li>Patch: 24 fixtures across 2 universes</li>
+          <li>Groups: 6 groups (Front Wash, Back Truss, Movers L, Movers R, LED Strips, Specials)</li>
+          <li>Color Palettes: 8 (Deep Blue, Warm Amber, Fire Red, Cool White, Lavender, Forest, Sunset, Ice)</li>
+          <li>Cue Lists: 2 (Main Show: 15 cues, House: 4 cues)</li>
+        </ul>
+      </div>
+    `;
+    return;
+  }
+
+  preview.style.display = 'block';
+  const fixtures = currentConsole === 'onyx' ? 16 : (currentConsole === 'etc' ? 24 : 40);
+  const groups = currentConsole === 'onyx' ? 3 : (currentConsole === 'etc' ? 6 : 8);
+  preview.innerHTML = `
+    <div class="req-callout success">
+      <div class="req-title">Import Preview</div>
+      <p style="margin-top:6px;">Found ${fixtures} fixtures across ${p.activeUniverses.length} universes and ${groups} groups.</p>
+      <p style="margin-top:8px;">Console fixtures will be tagged as "monitoring only" — ShowUp won't output DMX for them but will use them for look capture and complement analysis.</p>
+    </div>
+  `;
+}
+
+// ── Step 5: Summary ──
+function setupSummary() {
+  const p = profiles[currentConsole];
+  const mode = selectedMode || p.modeRec;
+  const modeLabel = { sideBySide: 'Side by Side', trigger: 'Trigger Mode', layer: 'Layer Mode', any: 'Side by Side' }[mode] || mode;
+
+  const consoleUnis = p.activeUniverses.join(', ');
+  const showupUnis = `${p.activeUniverses[p.activeUniverses.length-1]+1}, ${p.activeUniverses[p.activeUniverses.length-1]+2}`;
+
+  document.getElementById('celeSub').textContent = `ShowUp and your ${p.name} are ready to perform together.`;
+
+  document.getElementById('summaryCard').innerHTML = `
+    <div class="summary-row"><span class="summary-label">Console</span><span class="summary-value" style="color:${p.color};">${p.name}</span></div>
+    <div class="summary-row"><span class="summary-label">Mode</span><span class="summary-value">${modeLabel}</span></div>
+    <div class="summary-row"><span class="summary-label">Console Universes</span><span class="summary-value">${consoleUnis}</span></div>
+    <div class="summary-row"><span class="summary-label">ShowUp Universes</span><span class="summary-value">${showupUnis}</span></div>
+    <div class="summary-row"><span class="summary-label">Protocol</span><span class="summary-value">${p.summaryProtocol}</span></div>
+    <div class="summary-row"><span class="summary-label">Console IP</span><span class="summary-value">${p.ip}</span></div>
+    <div class="summary-row"><span class="summary-label">Integration Grade</span><span class="summary-value" style="color:${p.color};">${p.grade}</span></div>
+  `;
+
+  let nextHtml = '<div style="text-align:left; max-width:420px; margin:0 auto;">';
+  nextHtml += '<div class="card"><h3>Next Steps</h3><ul style="font-size:12px; color:var(--text-secondary); padding-left:16px; margin-top:8px; line-height:1.8;">';
+  nextHtml += '<li>Map your ShowUp moments to console cues (chain-link icon on each moment card)</li>';
+  nextHtml += '<li>Add Console Quick Actions for frequently used cues</li>';
+  nextHtml += '<li>Try capturing a look from the console (Capture button in Perform)</li>';
+  if (p.optionalSetup) nextHtml += `<li>${p.optionalSetup.title} for full bidirectional control</li>`;
+  nextHtml += '</ul></div></div>';
+  document.getElementById('nextStepsSection').innerHTML = nextHtml;
+}
+
+// Init
+selectConsole('ma');
+</script>
+</body>
+</html>
