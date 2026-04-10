@@ -290,24 +290,51 @@
 
 <div class="main">
 
-  <!-- ═══ STEP 0: DISCOVERY ═══ -->
+  <!-- ═══ STEP 0: CONSOLE SELECTION ═══ -->
   <div class="step active" id="step-0">
-    <div class="step-title">Auto-Discovery</div>
-    <div class="step-sub">ShowUp scans your network for lighting consoles via ArtPoll broadcast.</div>
+    <div class="step-title">What console are you working with?</div>
+    <div class="step-sub">Select your console and enter its IP address. Or scan the network to auto-detect.</div>
 
-    <div class="card" style="margin-bottom:20px;">
-      <h3>How Discovery Works</h3>
-      <p>ShowUp sends ArtPoll packets to 255.255.255.255:6454 and common subnet broadcasts. Consoles respond with ArtPollReply containing their OEM code, name, active universes, and IP address. ShowUp matches the OEM code against its built-in console database.</p>
-      <p style="margin-top:8px;">Discovery is automatic — it runs whenever ShowUp is connected to a network. No user action needed.</p>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="field-group">
+        <div class="field-row">
+          <span class="field-label">Console</span>
+          <select class="field-select" id="manualConsoleSelect" onchange="onManualConsoleChange()" style="min-width:220px;">
+            <option value="" disabled selected>Select your console...</option>
+            <option value="ma">GrandMA3</option>
+            <option value="etc">ETC Eos / Ion / Element</option>
+            <option value="mq">ChamSys MagicQ</option>
+            <option value="onyx">Obsidian Onyx</option>
+          </select>
+        </div>
+        <div class="field-row">
+          <span class="field-label">Console IP</span>
+          <input class="field-input" id="manualIpField" placeholder="e.g. 192.168.1.100" style="width:180px;">
+        </div>
+      </div>
     </div>
 
-    <div style="text-align:center; margin: 24px 0;">
-      <button class="btn btn-console" onclick="simulateDiscovery()" id="discoverBtn" style="padding:12px 28px; font-size:15px;">
-        Simulate Console Discovery
+    <div id="manualConsoleInfo" style="display:none;"></div>
+
+    <div style="display:flex; align-items:center; gap:16px; margin:20px 0;">
+      <div style="flex:1; height:1px; background:var(--border);"></div>
+      <span style="font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px;">or</span>
+      <div style="flex:1; height:1px; background:var(--border);"></div>
+    </div>
+
+    <div style="text-align:center; margin:16px 0;">
+      <button class="btn btn-console" onclick="simulateDiscovery()" id="discoverBtn" style="padding:10px 24px; font-size:13px;">
+        Scan Network for Consoles
       </button>
+      <p style="font-size:11px; color:var(--text-muted); margin-top:8px;">Sends ArtPoll broadcast to detect consoles automatically</p>
     </div>
 
     <div id="discoveryResult" style="display:none;"></div>
+
+    <div class="step-nav" id="step0Nav" style="display:none;">
+      <span></span>
+      <button class="btn btn-primary" onclick="goStep('diag')">Continue</button>
+    </div>
   </div>
 
   <!-- ═══ STEP 0.5: NETWORK DIAGNOSTIC ═══ -->
@@ -698,6 +725,57 @@ function resetWizard() {
   document.getElementById('step-0').classList.add('active');
   document.getElementById('discoveryResult').style.display = 'none';
   document.getElementById('discoverBtn').style.display = '';
+  document.getElementById('discoverBtn').disabled = false;
+  document.getElementById('discoverBtn').textContent = 'Scan Network for Consoles';
+  document.getElementById('step0Nav').style.display = 'none';
+  document.getElementById('manualConsoleSelect').value = '';
+  document.getElementById('manualIpField').value = '';
+  document.getElementById('manualConsoleInfo').style.display = 'none';
+}
+
+function onManualConsoleChange() {
+  const val = document.getElementById('manualConsoleSelect').value;
+  if (!val) return;
+
+  // Switch the simulated console to match
+  currentConsole = val;
+  document.querySelectorAll('.console-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.querySelector(`.console-btn.${val}`);
+  if (btn) btn.classList.add('active');
+
+  const p = profiles[val];
+  document.getElementById('manualIpField').value = p.ip;
+
+  // Show console-specific info card
+  const info = document.getElementById('manualConsoleInfo');
+  info.style.display = 'block';
+
+  let reqHtml = '';
+  p.requirements.forEach(r => {
+    const cls = r.type === 'warning' ? 'error' : r.type === 'hardware' ? '' : 'success';
+    const title = r.type === 'warning' ? 'Important' : r.type === 'hardware' ? 'Prerequisite' : 'Required Setting';
+    reqHtml += `<div class="req-callout ${cls}" style="margin-bottom:8px;"><div class="req-title">${title}</div><p>${r.text}</p></div>`;
+  });
+
+  let capsHtml = '<div class="feature-pills" style="margin-top:10px;">';
+  p.capabilities.slice(0, 6).forEach(cap => {
+    const cls = cap.status === 'yes' ? 'yes' : cap.status === 'no' ? 'no' : 'partial';
+    const icon = cap.status === 'yes' ? '&#x2713;' : cap.status === 'no' ? '&#x2717;' : '&#x25CB;';
+    capsHtml += `<span class="pill ${cls}">${icon} ${cap.label}</span>`;
+  });
+  capsHtml += '</div>';
+
+  info.innerHTML = `
+    <div class="card" style="border-color: ${p.color.replace('var(', '').replace(')', '')}30;">
+      <h3 style="color:${p.color};">${p.name} <span style="font-size:12px; color:var(--text-muted); font-weight:400;">Integration grade: ${p.grade}</span></h3>
+      <p style="margin-top:4px;">Primary protocol: <strong>${p.protocols[0].label}</strong> on port <strong>${p.protocols[0].port || 'N/A'}</strong></p>
+      ${capsHtml}
+    </div>
+    ${reqHtml}
+  `;
+
+  // Show the Continue button
+  document.getElementById('step0Nav').style.display = 'flex';
 }
 
 function simulateDiscovery() {
@@ -734,12 +812,21 @@ function simulateDiscovery() {
           </div>
         `).join('')}
         <div class="disc-actions">
-          <button class="btn btn-primary" onclick="goStep('diag')" style="flex:1; justify-content:center;">Set Up Coexistence</button>
-          <button class="btn btn-ghost" style="flex:0;">Later</button>
+          <button class="btn btn-primary" onclick="acceptDiscovery()" style="flex:1; justify-content:center;">Use This Console</button>
+          <button class="btn btn-ghost" onclick="document.getElementById('discoveryResult').style.display='none'">Dismiss</button>
         </div>
       </div>
     `;
   }, 1500);
+}
+
+function acceptDiscovery() {
+  // Auto-detect filled in the fields — apply to manual form
+  const p = profiles[currentConsole];
+  document.getElementById('manualConsoleSelect').value = currentConsole;
+  document.getElementById('manualIpField').value = p.ip;
+  onManualConsoleChange();
+  document.getElementById('discoveryResult').style.display = 'none';
 }
 
 function buildProgress(activeStep) {
@@ -913,8 +1000,10 @@ function setupModeStep() {
   document.getElementById('trigger-best').textContent = p.modeBests.trigger;
   document.getElementById('layer-best').textContent = p.modeBests.layer;
 
-  // Reset mode selection
+  // Reset mode selection, mark Layer as V1-unsafe
   document.querySelectorAll('.mode-card').forEach(c => { c.classList.remove('selected', 'disabled'); });
+  document.getElementById('mode-layer').classList.add('disabled');
+  document.getElementById('layer-best').innerHTML = 'Coming soon &mdash; requires sACN channel masking';
 }
 
 function selectMode(el, mode) {

@@ -68,9 +68,27 @@ class CoexistenceConfig {
   /// Whether coexistence is active (not solo mode).
   bool get isActive => mode != CoexistenceMode.solo;
 
+  /// V1-safe modes: sideBySide and triggerOnly.
+  /// Layer mode requires sACN channel masking (not yet implemented)
+  /// and MUST NOT be shipped until SacnTransport supports per-channel
+  /// output strategy. See RISKS_AND_MITIGATIONS.md RISK-01.
+  static const _v1SafeModes = {
+    CoexistenceMode.solo,
+    CoexistenceMode.sideBySide,
+    CoexistenceMode.triggerOnly,
+  };
+
+  /// Whether the current mode is safe to ship in V1.
+  bool get isV1Safe => _v1SafeModes.contains(mode);
+
   /// Whether ShowUp should output DMX on a given universe.
   bool shouldOutput(int universe) {
     if (mode == CoexistenceMode.triggerOnly) return false;
+
+    // V1 safety: layered mode is not safe until channel masking is
+    // implemented in SacnTransport. Block all output in layered mode.
+    if (mode == CoexistenceMode.layered) return false;
+
     final config = universeRoles[universe];
     if (config == null) return true; // unassigned = ShowUp controls
     return config.role != UniverseRole.consoleOwned;
@@ -170,11 +188,20 @@ class FailoverConfig {
   /// Duration (ms) to fade back to normal when console reconnects.
   final int fadeBackMs;
 
+  /// Whether operator must confirm before failover activates.
+  /// When true, ShowUp shows a notification instead of auto-acting.
+  final bool requireConfirmation;
+
+  /// Duration (ms) to fade in when taking over (avoids hard snap).
+  final int fadeInMs;
+
   const FailoverConfig({
     this.enabled = false,
-    this.timeoutSeconds = 5,
+    this.timeoutSeconds = 15,
     this.fallbackMode = FailoverMode.lastCapture,
     this.fadeBackMs = 2000,
+    this.requireConfirmation = true,
+    this.fadeInMs = 3000,
   });
 
   Map<String, dynamic> toJson() => {
@@ -182,16 +209,20 @@ class FailoverConfig {
         'timeoutSeconds': timeoutSeconds,
         'fallbackMode': fallbackMode.name,
         'fadeBackMs': fadeBackMs,
+        'requireConfirmation': requireConfirmation,
+        'fadeInMs': fadeInMs,
       };
 
   factory FailoverConfig.fromJson(Map<String, dynamic> json) => FailoverConfig(
         enabled: json['enabled'] as bool? ?? false,
-        timeoutSeconds: json['timeoutSeconds'] as int? ?? 5,
+        timeoutSeconds: json['timeoutSeconds'] as int? ?? 15,
         fallbackMode: FailoverMode.values.firstWhere(
           (m) => m.name == json['fallbackMode'],
           orElse: () => FailoverMode.lastCapture,
         ),
         fadeBackMs: json['fadeBackMs'] as int? ?? 2000,
+        requireConfirmation: json['requireConfirmation'] as bool? ?? true,
+        fadeInMs: json['fadeInMs'] as int? ?? 3000,
       );
 }
 

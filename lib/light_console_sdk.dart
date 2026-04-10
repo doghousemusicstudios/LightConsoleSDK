@@ -31,6 +31,7 @@
 library light_console_sdk;
 
 // ── Models ──
+export 'models/universe_address.dart';
 export 'models/universe_role.dart';
 export 'models/console_profile.dart';
 export 'models/coexistence_config.dart';

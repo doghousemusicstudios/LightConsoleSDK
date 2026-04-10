@@ -87,11 +87,13 @@ light_console_sdk/
 
 ### Three Coexistence Modes
 
-**Side by Side** — ShowUp and the console each own separate DMX universes. No overlap, no conflicts. ShowUp controls its fixtures; the console controls its own. Universe roles are color-coded: purple = ShowUp, blue = console, green = shared.
+**Side by Side** (V1) — ShowUp and the console each own separate DMX universes. No overlap, no conflicts. ShowUp controls its fixtures; the console controls its own. Universe roles are color-coded: purple = ShowUp, blue = console, green = shared.
 
-**Trigger Mode** — ShowUp sends cue/macro commands to the console via OSC or MIDI but does not output any DMX itself. The console handles all fixture control. ShowUp's Perform screen becomes a remote control for the console with moment-based workflow instead of cue-list workflow.
+**Trigger Mode** (V1) — ShowUp sends cue/macro commands to the console via OSC or MIDI but does not output any DMX itself. The console handles all fixture control. ShowUp's Perform screen becomes a remote control for the console with moment-based workflow instead of cue-list workflow.
 
-**Layer Mode** — ShowUp adds a reactive lighting layer underneath the console using sACN priority-based merging. The console's output always takes precedence (higher priority). ShowUp fills the gaps between console cues with reactive, music-driven effects. When the console fires a cue, ShowUp automatically lowers its priority to stay out of the way.
+**Layer Mode** (Phase 2 — not yet shippable) — ShowUp adds a reactive lighting layer underneath the console using sACN priority-based merging. The console's output always takes precedence (higher priority). ShowUp fills the gaps between console cues with reactive, music-driven effects.
+
+> **V1 shipping boundary:** Layer mode and shared-universe coexistence require sACN per-channel masking in `SacnTransport` to prevent ShowUp from outputting zeros on channels it doesn't own (see RISK-01 in `RISKS_AND_MITIGATIONS.md`). Until that implementation is validated with real sACN receivers, the SDK gates `CoexistenceMode.layered` — `shouldOutput()` returns `false` for all universes in layered mode, and `isV1Safe` returns `false`. The setup wizard disables the Layer card. Side by Side and Trigger are safe to ship because they never output to console-owned universes.
 
 ---
 
