@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LightConsoleSDK — ShowUp Console Coexistence</title>
+<style>
+  :root {
+    --bg-deepest: #06060f;
+    --bg-deep: #0d0d1a;
+    --bg-surface: #14142a;
+    --bg-elevated: #1c1c3a;
+    --bg-hover: #24244a;
+    --primary: #7c3aed;
+    --primary-glow: rgba(124, 58, 237, 0.3);
+    --primary-soft: rgba(124, 58, 237, 0.15);
+    --console-blue: #3b82f6;
+    --console-glow: rgba(59, 130, 246, 0.3);
+    --shared-green: #10b981;
+    --shared-glow: rgba(16, 185, 129, 0.3);
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --success: #10b981;
+    --ma-gold: #d4a843;
+    --etc-teal: #22d3ee;
+    --chamsys-orange: #f97316;
+    --onyx-red: #ef4444;
+    --text-primary: #e5e7eb;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --border: rgba(255,255,255,0.06);
+    --border-active: rgba(124, 58, 237, 0.4);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-lg: 16px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+    background: var(--bg-deepest);
+    color: var(--text-primary);
+    line-height: 1.6;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    text-align: center;
+    padding: 80px 24px 60px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -100px; left: 50%; transform: translateX(-50%);
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 16px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+    background: var(--primary-soft); color: var(--primary);
+    border: 1px solid rgba(124,58,237,0.3);
+    margin-bottom: 20px;
+  }
+  .hero h1 {
+    font-size: 48px; font-weight: 800; letter-spacing: -1.5px;
+    background: linear-gradient(135deg, var(--primary), #a78bfa, var(--console-blue));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 16px; position: relative;
+  }
+  .hero .subtitle {
+    font-size: 20px; color: var(--text-secondary); max-width: 640px;
+    margin: 0 auto 32px; font-weight: 400;
+  }
+  .hero-stats {
+    display: flex; justify-content: center; gap: 40px;
+    margin-top: 32px; position: relative;
+  }
+  .hero-stat { text-align: center; }
+  .hero-stat .number {
+    font-size: 36px; font-weight: 800;
+    background: linear-gradient(135deg, var(--primary), var(--console-blue));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .hero-stat .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* ── Navigation ── */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(13,13,26,0.9); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: center; gap: 4px;
+    padding: 8px 16px;
+  }
+  .nav-btn {
+    padding: 8px 18px; border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 500; color: var(--text-muted);
+    cursor: pointer; border: none; background: none; transition: all 0.2s;
+  }
+  .nav-btn:hover { color: var(--text-secondary); background: var(--bg-surface); }
+  .nav-btn.active { color: var(--text-primary); background: var(--primary-soft); }
+
+  /* ── Sections ── */
+  .section { display: none; max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+  .section.active { display: block; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .section-title { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .section-subtitle { font-size: 14px; color: var(--text-secondary); margin-bottom: 32px; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; margin-bottom: 16px;
+  }
+  .card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .card p { font-size: 13px; color: var(--text-secondary); }
+
+  /* ── Modes Grid ── */
+  .modes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 24px 0; }
+  .mode-card {
+    background: var(--bg-surface); border: 2px solid var(--border);
+    border-radius: var(--radius); padding: 28px; text-align: center;
+    transition: all 0.3s; cursor: default;
+  }
+  .mode-card:hover { border-color: var(--primary); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  .mode-icon { font-size: 40px; margin-bottom: 14px; display: block; }
+  .mode-name { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .mode-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+  .mode-best { font-size: 11px; color: var(--primary); margin-top: 10px; font-weight: 600; }
+
+  /* ── Console Profiles ── */
+  .console-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 24px 0; }
+  .console-card {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; transition: all 0.3s; cursor: pointer;
+  }
+  .console-card:hover { border-color: var(--border-active); transform: translateY(-2px); }
+  .console-card.expanded { grid-column: 1 / -1; }
+  .console-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  .console-logo {
+    width: 48px; height: 48px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; font-weight: 800; color: white;
+  }
+  .console-logo.ma { background: linear-gradient(135deg, #b8860b, var(--ma-gold)); }
+  .console-logo.etc { background: linear-gradient(135deg, #0891b2, var(--etc-teal)); }
+  .console-logo.chamsys { background: linear-gradient(135deg, #ea580c, var(--chamsys-orange)); }
+  .console-logo.onyx { background: linear-gradient(135deg, #dc2626, var(--onyx-red)); }
+  .console-name { font-size: 18px; font-weight: 700; }
+  .console-mfg { font-size: 12px; color: var(--text-muted); }
+  .console-detail { display: none; margin-top: 16px; }
+  .console-card.expanded .console-detail { display: block; }
+
+  /* ── Gap Analysis Table ── */
+  .gap-table {
+    width: 100%; border-collapse: collapse; margin: 24px 0;
+    font-size: 13px;
+  }
+  .gap-table th {
+    text-align: left; padding: 12px 16px;
+    background: var(--bg-deep); color: var(--text-muted);
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; border-bottom: 1px solid var(--border);
+  }
+  .gap-table td {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    color: var(--text-secondary); vertical-align: top;
+  }
+  .gap-table tr:hover td { background: var(--bg-surface); }
+  .gap-check { color: var(--success); font-weight: 700; }
+  .gap-cross { color: var(--danger); font-weight: 700; }
+  .gap-partial { color: var(--warning); font-weight: 700; }
+  .gap-best { color: var(--etc-teal); font-weight: 700; }
+
+  /* ── Venue Stories ── */
+  .venue-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin: 24px 0; }
+  .venue-card {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; transition: all 0.3s;
+  }
+  .venue-card:hover { border-color: var(--primary); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  .venue-icon { font-size: 32px; margin-bottom: 12px; }
+  .venue-name { font-size: 16px; font-weight: 700; margin-bottom: 2px; }
+  .venue-persona { font-size: 12px; color: var(--primary); margin-bottom: 12px; font-weight: 500; }
+  .venue-pain {
+    font-size: 12px; color: var(--text-secondary); line-height: 1.5;
+    margin-bottom: 12px; padding-left: 12px; border-left: 2px solid var(--danger);
+  }
+  .venue-benefit {
+    font-size: 12px; color: var(--text-secondary); line-height: 1.5;
+    padding-left: 12px; border-left: 2px solid var(--success);
+  }
+  .venue-features { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 12px; }
+  .feature-tag {
+    font-size: 10px; padding: 2px 8px; border-radius: 10px;
+    background: var(--primary-soft); color: var(--primary); font-weight: 500;
+  }
+
+  /* ── Architecture ── */
+  .arch-flow {
+    background: var(--bg-deep); border-radius: var(--radius); padding: 32px;
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px;
+    color: var(--text-secondary); overflow-x: auto; white-space: pre;
+    line-height: 1.7; margin: 24px 0;
+  }
+  .arch-flow .showup { color: var(--primary); font-weight: 700; }
+  .arch-flow .console { color: var(--console-blue); font-weight: 700; }
+  .arch-flow .bridge { color: var(--shared-green); font-weight: 700; }
+
+  /* ── SDK Modules ── */
+  .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin: 24px 0; }
+  .module-card {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 16px;
+  }
+  .module-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .module-files { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+  .module-desc { font-size: 12px; color: var(--text-secondary); }
+  .module-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .module-dot.transport { background: var(--console-blue); }
+  .module-dot.models { background: var(--primary); }
+  .module-dot.discovery { background: var(--shared-green); }
+  .module-dot.output { background: var(--ma-gold); }
+  .module-dot.import { background: var(--chamsys-orange); }
+  .module-dot.capture { background: var(--etc-teal); }
+  .module-dot.health { background: var(--danger); }
+  .module-dot.advanced { background: #a78bfa; }
+
+  /* ── Activation Flow ── */
+  .flow-step {
+    display: flex; gap: 16px; align-items: flex-start; margin-bottom: 20px;
+  }
+  .flow-dot {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: white;
+    background: var(--primary);
+  }
+  .flow-dot.console-step { background: var(--console-blue); }
+  .flow-dot.bridge-step { background: var(--shared-green); }
+  .flow-content h4 { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .flow-content p { font-size: 12px; color: var(--text-secondary); }
+  .flow-code {
+    font-family: 'SF Mono', monospace; font-size: 11px;
+    background: var(--bg-deep); padding: 4px 8px; border-radius: 4px;
+    color: var(--shared-green); margin-top: 4px; display: inline-block;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 32px; }
+    .modes-grid, .console-grid { grid-template-columns: 1fr; }
+    .hero-stats { flex-wrap: wrap; gap: 24px; }
+    .nav { flex-wrap: wrap; }
+  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <div class="hero-badge">Pure Dart SDK &bull; Zero Flutter Dependency</div>
+  <h1>LightConsoleSDK</h1>
+  <p class="subtitle">ShowUp's co-pilot when the LD is around.<br>Its stunt double when they're not.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><div class="number">38</div><div class="label">Dart Files</div></div>
+    <div class="hero-stat"><div class="number">4</div><div class="label">Console Profiles</div></div>
+    <div class="hero-stat"><div class="number">3</div><div class="label">Coexistence Modes</div></div>
+    <div class="hero-stat"><div class="number">10</div><div class="label">Modules</div></div>
+  </div>
+</div>
+
+<!-- ═══ NAV ═══ -->
+<div class="nav">
+  <button class="nav-btn active" onclick="showSection('overview')">Overview</button>
+  <button class="nav-btn" onclick="showSection('modes')">Modes</button>
+  <button class="nav-btn" onclick="showSection('consoles')">Consoles</button>
+  <button class="nav-btn" onclick="showSection('gap')">Gap Analysis</button>
+  <button class="nav-btn" onclick="showSection('venues')">Venue Stories</button>
+  <button class="nav-btn" onclick="showSection('architecture')">Architecture</button>
+  <button class="nav-btn" onclick="showSection('flow')">How It Works</button>
+</div>
+
+<!-- ═══ OVERVIEW ═══ -->
+<div class="section active" id="section-overview">
+  <h2 class="section-title">What LightConsoleSDK Does</h2>
+  <p class="section-subtitle">Bridges ShowUp's reactive, music-driven lighting with professional consoles' precise cue programming.</p>
+
+  <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: start; margin: 32px 0;">
+    <div class="card" style="border-color: var(--primary); border-width: 2px;">
+      <h3 style="color: var(--primary);">ShowUp Owns</h3>
+      <ul style="font-size: 13px; color: var(--text-secondary); list-style: none; margin-top: 8px;">
+        <li style="padding: 4px 0;">Music-reactive effects</li>
+        <li style="padding: 4px 0;">Mood-based generation</li>
+        <li style="padding: 4px 0;">Mobile / tablet control</li>
+        <li style="padding: 4px 0;">Instant looks & moments</li>
+        <li style="padding: 4px 0;">Dynamic crowd lighting</li>
+      </ul>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: center; padding-top: 40px; gap: 8px;">
+      <div style="width: 2px; height: 30px; background: var(--shared-green);"></div>
+      <div style="font-size: 24px;">&#x1F91D;</div>
+      <div style="width: 2px; height: 30px; background: var(--shared-green);"></div>
+      <div style="font-size: 10px; color: var(--shared-green); text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Bridge</div>
+    </div>
+    <div class="card" style="border-color: var(--console-blue); border-width: 2px;">
+      <h3 style="color: var(--console-blue);">Console Owns</h3>
+      <ul style="font-size: 13px; color: var(--text-secondary); list-style: none; margin-top: 8px;">
+        <li style="padding: 4px 0;">Cue stacks & tracking</li>
+        <li style="padding: 4px 0;">Precise timing sequences</li>
+        <li style="padding: 4px 0;">Complex multi-part cues</li>
+        <li style="padding: 4px 0;">Raw programmer workflows</li>
+        <li style="padding: 4px 0;">House lights & specials</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>The Product Promise</h3>
+    <p style="font-size: 15px; color: var(--text-primary); margin-top: 8px;">
+      A ShowUp user who walks into a venue with an existing console should feel like they gained a superpower, not hit a wall.
+    </p>
+    <p style="margin-top: 12px;">ShowUp never tries to replace a GrandMA3, ETC Eos, ChamSys MagicQ, or Onyx. Instead, it becomes the best possible companion — handling the reactive, generative, music-driven layer while letting the console do what it does best.</p>
+  </div>
+</div>
+
+<!-- ═══ MODES ═══ -->
+<div class="section" id="section-modes">
+  <h2 class="section-title">Coexistence Modes</h2>
+  <p class="section-subtitle">Three ways ShowUp and your console can share the stage.</p>
+
+  <div class="modes-grid">
+    <div class="mode-card">
+      <span class="mode-icon">&#x21C6;</span>
+      <div class="mode-name">Side by Side</div>
+      <div class="mode-desc">ShowUp and the console each own separate DMX universes. No overlap, no conflicts. Color-coded universe map keeps it crystal clear.</div>
+      <div class="mode-best">Best for: Churches, schools, any venue with separate fixture groups</div>
+    </div>
+    <div class="mode-card">
+      <span class="mode-icon">&#x26A1;</span>
+      <div class="mode-name">Trigger Mode</div>
+      <div class="mode-desc">ShowUp sends cue commands to the console via OSC or MIDI. No DMX from ShowUp. The Perform screen becomes a friendly remote control for the console.</div>
+      <div class="mode-best">Best for: Operators who want ShowUp's UI but all fixtures on the console</div>
+    </div>
+    <div class="mode-card">
+      <span class="mode-icon">&#x25D2;</span>
+      <div class="mode-name">Layer Mode</div>
+      <div class="mode-desc">ShowUp adds a reactive layer underneath the console via sACN priority merging. Console output always wins. ShowUp fills the reactive gaps.</div>
+      <div class="mode-best">Best for: Concert venues, touring shows, ambient installations</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONSOLES ═══ -->
+<div class="section" id="section-consoles">
+  <h2 class="section-title">Console Profiles</h2>
+  <p class="section-subtitle">Click a console to see how ShowUp integrates with it.</p>
+
+  <div class="console-grid" id="consoleGrid">
+    <!-- GrandMA3 -->
+    <div class="console-card" onclick="toggleConsole(this)">
+      <div class="console-header">
+        <div class="console-logo ma">MA</div>
+        <div><div class="console-name">GrandMA3</div><div class="console-mfg">MA Lighting</div></div>
+      </div>
+      <p>The touring industry standard. Command-based OSC API. Co-creator of GDTF and MVR.</p>
+      <div class="console-detail">
+        <div class="card" style="margin-top:16px; background: var(--bg-deep);">
+          <h3 style="color: var(--ma-gold);">What ShowUp Can Do</h3>
+          <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
+            <li>Fire cues via <code>/gma3/cmd "Go+ Cue 3"</code></li>
+            <li>Set fader levels via <code>/gma3/Page1/Fader1</code></li>
+            <li>Fire macros via <code>/gma3/cmd "Macro 1"</code></li>
+            <li>Send any command-line instruction via OSC</li>
+            <li>Import MVR files (native export from MA3)</li>
+            <li>Import GDTF fixtures (MA co-created the standard)</li>
+            <li>Detect on network via ArtPoll OEM codes</li>
+            <li>Share network via sACN priority merging</li>
+          </ul>
+        </div>
+        <div class="card" style="background: var(--bg-deep);">
+          <h3 style="color: var(--danger);">Limitations</h3>
+          <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
+            <li>No per-fader OSC feedback (sequence-level only; third-party plugin needed)</li>
+            <li>No MIDI Show Control support</li>
+            <li>OSC bundles not supported</li>
+            <li>Localhost port conflicts possible</li>
+          </ul>
+        </div>
+        <div class="card" style="background: var(--bg-deep);">
+          <h3>Recommended Mode</h3>
+          <p style="margin-top:4px;"><strong style="color: var(--primary);">Side by Side</strong> or <strong style="color: var(--primary);">Layer</strong> &mdash; MA3's command-based OSC works well for triggers, and sACN priority merging is the natural fit for layered reactive effects.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ETC Eos -->
+    <div class="console-card" onclick="toggleConsole(this)">
+      <div class="console-header">
+        <div class="console-logo etc">Eos</div>
+        <div><div class="console-name">ETC Eos Family</div><div class="console-mfg">ETC (Eos, Ion, Element, ColorSource)</div></div>
+      </div>
+      <p>The most comprehensive OSC API of any console. Fully bidirectional. Invented sACN.</p>
+      <div class="console-detail">
+        <div class="card" style="margin-top:16px; background: var(--bg-deep);">
+          <h3 style="color: var(--etc-teal);">What ShowUp Can Do</h3>
+          <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
+            <li>Fire cues via <code>/eos/cue/1/3/fire</code></li>
+            <li>Set faders via <code>/eos/fader/1/1</code> (0.0&ndash;1.0)</li>
+            <li>Control channels via <code>/eos/chan/1</code></li>
+            <li>Fire macros via <code>/eos/macro/1/fire</code></li>
+            <li><strong>Read fader positions, cue state, patch data</strong> via <code>/eos/out/</code></li>
+            <li>Use MIDI Show Control (MSC) for triggers</li>
+            <li>Import MVR files (Eos v3.2+)</li>
+            <li>Import GDTF fixtures (Eos v3.2.4+)</li>
+            <li>sACN priority merging (ETC invented sACN)</li>
+          </ul>
+        </div>
+        <div class="card" style="background: var(--bg-deep);">
+          <h3 style="color: var(--danger);">Limitations</h3>
+          <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
+            <li>3-second debounce on fader feedback after OSC-driven moves</li>
+            <li>GDTF multi-cell fixtures not fully supported</li>
+            <li>ColorSource non-AV models have reduced networking</li>
+            <li>Show Control settings must be enabled manually</li>
+          </ul>
+        </div>
+        <div class="card" style="background: var(--bg-deep);">
+          <h3>Recommended Mode</h3>
+          <p style="margin-top:4px;"><strong style="color: var(--etc-teal);">Any mode</strong> &mdash; Eos's rich bidirectional OSC makes all modes work equally well. The best integration target of any console.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ChamSys MagicQ -->
+    <div class="console-card" onclick="toggleConsole(this)">
+      <div class="console-header">
+        <div class="console-logo chamsys">MQ</div>
+        <div><div class="console-name">ChamSys MagicQ</div><div class="console-mfg">ChamSys (MQ500, MQ250, MQ80, MQ70, MQ60, MQ40)</div></div>
+      </div>
+      <p>Playback-centric OSC. Best free software version (64 universes). First major console with GDTF.</p>
+      <div class="console-detail">
+        <div class="card" style="margin-top:16px; background: var(--bg-deep);">
+          <h3 style="color: var(--chamsys-orange);">What ShowUp Can Do</h3>
+          <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
+            <li>Control playbacks 1-10 via <code>/ch/playback/1/go</code></li>
+            <li>Set playback levels via <code>/ch/playback/1/level</code></li>
+            <li>Fire macros via <code>/ch/macro/1/go</code></li>
+            <li>Import MVR files</li>
+            <li>Import GDTF fixtures (first major console to support GDTF)</li>
+            <li>sACN priority merging</li>
+            <li>Detect on network via ArtPoll</li>
+          </ul>
+        </div>
+        <div class="card" style="background: var(--bg-deep);">
+          <h3 style="color: var(--danger);">Limitations</h3>
+          <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
+            <li>Only 10 playbacks via direct OSC (AUTOM config needed for more)</li>
+            <li>UDP only (no TCP &mdash; less reliable)</li>
+            <li>OSC not supported on MQ40 / MQ40N consoles</li>
+            <li>PC version needs "Unlocked Mode" for OSC</li>
+            <li>Cannot receive OSC bundles in transmit</li>
+          </ul>
+        </div>
+        <div class="card" style="background: var(--bg-deep);">
+          <h3>Recommended Mode</h3>
+          <p style="margin-top:4px;"><strong style="color: var(--chamsys-orange);">Side by Side</strong> &mdash; The 10-playback OSC limit means Side by Side avoids the limitation entirely. For simple shows, Trigger Mode also works well.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Obsidian Onyx -->
+    <div class="console-card" onclick="toggleConsole(this)">
+      <div class="console-header">
+        <div class="console-logo onyx">NX</div>
+        <div><div class="console-name">Obsidian Onyx</div><div class="console-mfg">Obsidian Control Systems (NX4, NX2, NX1, NX Wing)</div></div>
+      </div>
+      <p>Solid MIDI Show Control support. Budget-friendly hardware. OSC subset with licensing caveats.</p>
+      <div class="console-detail">
+        <div class="card" style="margin-top:16px; background: var(--bg-deep);">
+          <h3 style="color: var(--onyx-red);">What ShowUp Can Do</h3>
+          <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
+            <li>Control playback faders 1-10, buttons 1-20</li>
+            <li>Set GrandMaster and FlashMaster levels</li>
+            <li>Trigger 50+ keyboard functions via OSC</li>
+            <li><strong>MIDI Show Control (MSC)</strong> &mdash; Onyx's strongest path</li>
+            <li>MIDI notes and timecode</li>
+            <li>sACN and Art-Net output</li>
+            <li>Detect on network via ArtPoll</li>
+          </ul>
+        </div>
+        <div class="card" style="background: var(--bg-deep);">
+          <h3 style="color: var(--danger);">Limitations</h3>
+          <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
+            <li><strong>No MVR support</strong> (CSV patch import only)</li>
+            <li><strong>No GDTF</strong> fixture import confirmed</li>
+            <li>OSC/MIDI restricted to evaluation in FREE mode</li>
+            <li>No bidirectional OSC feedback</li>
+            <li>Port labeling is inverted from external tools</li>
+          </ul>
+        </div>
+        <div class="card" style="background: var(--bg-deep);">
+          <h3>Recommended Mode</h3>
+          <p style="margin-top:4px;"><strong style="color: var(--onyx-red);">Trigger Mode via MSC</strong> &mdash; Onyx's OSC is limited, but MIDI Show Control is solid. MSC bypasses the OSC limitations. CSV patch import fills the MVR gap.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GAP ANALYSIS ═══ -->
+<div class="section" id="section-gap">
+  <h2 class="section-title">Console Gap Analysis</h2>
+  <p class="section-subtitle">What's possible and what's not for each console family.</p>
+
+  <table class="gap-table">
+    <thead>
+      <tr>
+        <th>Feature</th>
+        <th>GrandMA3</th>
+        <th>ETC Eos</th>
+        <th>ChamSys MQ</th>
+        <th>Onyx</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>OSC Cue Triggers</strong></td>
+        <td class="gap-check">Yes (via /cmd)</td>
+        <td class="gap-best">Excellent (dedicated addresses)</td>
+        <td class="gap-check">Yes (10 playbacks)</td>
+        <td class="gap-partial">Limited (10 faders)</td>
+      </tr>
+      <tr>
+        <td><strong>OSC Fader Control</strong></td>
+        <td class="gap-check">Yes</td>
+        <td class="gap-best">Yes + bidirectional</td>
+        <td class="gap-check">Yes (10 playbacks)</td>
+        <td class="gap-check">Yes (10 faders)</td>
+      </tr>
+      <tr>
+        <td><strong>OSC Feedback (Console &rarr; ShowUp)</strong></td>
+        <td class="gap-partial">Plugin needed</td>
+        <td class="gap-best">Full native (/eos/out/)</td>
+        <td class="gap-cross">No</td>
+        <td class="gap-cross">No</td>
+      </tr>
+      <tr>
+        <td><strong>MIDI Show Control</strong></td>
+        <td class="gap-cross">Not supported</td>
+        <td class="gap-check">Yes (up to 32 sources)</td>
+        <td class="gap-partial">Partial</td>
+        <td class="gap-check">Yes</td>
+      </tr>
+      <tr>
+        <td><strong>MIDI Notes / CC</strong></td>
+        <td class="gap-check">Yes</td>
+        <td class="gap-check">Yes</td>
+        <td class="gap-check">Yes</td>
+        <td class="gap-check">Yes</td>
+      </tr>
+      <tr>
+        <td><strong>sACN Output</strong></td>
+        <td class="gap-check">Yes</td>
+        <td class="gap-best">Yes (inventor)</td>
+        <td class="gap-check">Yes</td>
+        <td class="gap-check">Yes</td>
+      </tr>
+      <tr>
+        <td><strong>sACN Priority Merging</strong></td>
+        <td class="gap-check">Yes</td>
+        <td class="gap-check">Yes</td>
+        <td class="gap-check">Yes</td>
+        <td class="gap-check">Yes</td>
+      </tr>
+      <tr>
+        <td><strong>Art-Net</strong></td>
+        <td class="gap-check">Yes</td>
+        <td class="gap-check">Yes</td>
+        <td class="gap-check">Yes</td>
+        <td class="gap-check">Yes</td>
+      </tr>
+      <tr>
+        <td><strong>MVR Import / Export</strong></td>
+        <td class="gap-best">Native (co-creator)</td>
+        <td class="gap-check">Import (v3.2+)</td>
+        <td class="gap-check">Import</td>
+        <td class="gap-cross">Not supported</td>
+      </tr>
+      <tr>
+        <td><strong>GDTF Fixtures</strong></td>
+        <td class="gap-best">Native (co-creator)</td>
+        <td class="gap-partial">Limited import</td>
+        <td class="gap-check">Yes (first adopter)</td>
+        <td class="gap-cross">Not confirmed</td>
+      </tr>
+      <tr>
+        <td><strong>Console Fader &rarr; ShowUp Param</strong></td>
+        <td class="gap-cross">No (no feedback)</td>
+        <td class="gap-best">Yes (3s delay)</td>
+        <td class="gap-cross">No</td>
+        <td class="gap-cross">No</td>
+      </tr>
+      <tr>
+        <td><strong>Free Software Version</strong></td>
+        <td class="gap-cross">No</td>
+        <td class="gap-partial">Nomad (limited)</td>
+        <td class="gap-best">64 universes free</td>
+        <td class="gap-partial">1 universe free</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="card" style="margin-top: 24px;">
+    <h3>Integration Quality Summary</h3>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px;">
+      <div style="text-align: center; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-deep);">
+        <div style="font-size: 32px; margin-bottom: 8px; color: var(--ma-gold);">B+</div>
+        <div style="font-size: 14px; font-weight: 600;">GrandMA3</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Great triggers + MVR/GDTF. Feedback is the gap.</div>
+      </div>
+      <div style="text-align: center; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-deep); border: 1px solid var(--etc-teal);">
+        <div style="font-size: 32px; margin-bottom: 8px; color: var(--etc-teal);">A+</div>
+        <div style="font-size: 14px; font-weight: 600;">ETC Eos</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Best integration. Full bidirectional. All modes.</div>
+      </div>
+      <div style="text-align: center; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-deep);">
+        <div style="font-size: 32px; margin-bottom: 8px; color: var(--chamsys-orange);">B</div>
+        <div style="font-size: 14px; font-weight: 600;">ChamSys MQ</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Solid basics. 10-PB limit. Best free software.</div>
+      </div>
+      <div style="text-align: center; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-deep);">
+        <div style="font-size: 32px; margin-bottom: 8px; color: var(--onyx-red);">C+</div>
+        <div style="font-size: 14px; font-weight: 600;">Onyx</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">MSC is strong. No MVR/GDTF. OSC licensing gaps.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ VENUE STORIES ═══ -->
+<div class="section" id="section-venues">
+  <h2 class="section-title">Venue Benefits</h2>
+  <p class="section-subtitle">How console coexistence transforms real venues.</p>
+
+  <div class="venue-grid">
+    <div class="venue-card">
+      <div class="venue-icon">&#x26EA;</div>
+      <div class="venue-name">Community Church</div>
+      <div class="venue-persona">Sarah, Volunteer Operator</div>
+      <div class="venue-pain">Programs 3-4 static cues per song on ETC. Songs change last minute. No reactive lighting. Worship feels flat.</div>
+      <div class="venue-benefit">ShowUp handles reactive movers on universe 3. ETC cues fire automatically via OSC when moments change. Setlist changes in seconds.</div>
+      <div class="venue-features">
+        <span class="feature-tag">OSC Triggers</span>
+        <span class="feature-tag">Universe Separation</span>
+        <span class="feature-tag">Moment Mapping</span>
+      </div>
+    </div>
+    <div class="venue-card">
+      <div class="venue-icon">&#x1F490;</div>
+      <div class="venue-name">Wedding Venue</div>
+      <div class="venue-persona">Marcus, Mobile DJ</div>
+      <div class="venue-pain">House LD leaves at 6pm. Marcus can't program ChamSys. Expensive rig runs at 20% potential.</div>
+      <div class="venue-benefit">ShowUp captures LD's looks before they leave. Marcus runs everything from iPad. ChamSys executes captured looks via triggers.</div>
+      <div class="venue-features">
+        <span class="feature-tag">Look Capture</span>
+        <span class="feature-tag">MVR Import</span>
+        <span class="feature-tag">Auto-Failover</span>
+      </div>
+    </div>
+    <div class="venue-card">
+      <div class="venue-icon">&#x1F3B8;</div>
+      <div class="venue-name">Concert Venue</div>
+      <div class="venue-persona">The Roxy, House Manager</div>
+      <div class="venue-pain">Between sets, house lights are fluorescent or off. Touring LDs run the stage but nobody handles ambient. Changeovers feel dead.</div>
+      <div class="venue-benefit">ShowUp runs ambient fixtures at sACN priority 50. Touring LD's MA3 overrides at 100. ShowUp reacts to house music between sets. Room always feels alive.</div>
+      <div class="venue-features">
+        <span class="feature-tag">sACN Priority</span>
+        <span class="feature-tag">Layer Mode</span>
+        <span class="feature-tag">Fader Passthrough</span>
+      </div>
+    </div>
+    <div class="venue-card">
+      <div class="venue-icon">&#x1F3AD;</div>
+      <div class="venue-name">School Theater</div>
+      <div class="venue-persona">Ms. Chen, Theater Teacher</div>
+      <div class="venue-pain">60+ cues on Onyx for conventionals. 8 new LED PARs sit on static blue because no time to program them.</div>
+      <div class="venue-benefit">ShowUp controls LED PARs on their own universe. Mood-matched reactive lighting for each scene. LEDs finally earn their keep.</div>
+      <div class="venue-features">
+        <span class="feature-tag">MSC Triggers</span>
+        <span class="feature-tag">Side by Side</span>
+        <span class="feature-tag">Scene Matching</span>
+      </div>
+    </div>
+    <div class="venue-card">
+      <div class="venue-icon">&#x1F3B6;</div>
+      <div class="venue-name">Small Club</div>
+      <div class="venue-persona">DJ Luna, Resident DJ</div>
+      <div class="venue-pain">No console. 16 LED PARs + 4 movers. ShowUp is the entire lighting system.</div>
+      <div class="venue-benefit">Everything works as-is. Console features are invisible until a console appears. sACN output future-proofs the venue.</div>
+      <div class="venue-features">
+        <span class="feature-tag">Solo Mode</span>
+        <span class="feature-tag">GDTF Import</span>
+        <span class="feature-tag">Future-Proof</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ARCHITECTURE ═══ -->
+<div class="section" id="section-architecture">
+  <h2 class="section-title">SDK Architecture</h2>
+  <p class="section-subtitle">38 Dart files across 10 modules. Zero Flutter dependency. One barrel export.</p>
+
+  <div class="module-grid">
+    <div class="module-card">
+      <div class="module-name"><div class="module-dot transport"></div>Transport</div>
+      <div class="module-files">5 files</div>
+      <div class="module-desc">sACN E1.31 output + input, Art-Net receiver, unified DMX input service</div>
+    </div>
+    <div class="module-card">
+      <div class="module-name"><div class="module-dot models"></div>Models</div>
+      <div class="module-files">8 files</div>
+      <div class="module-desc">Universe roles, console profiles, triggers, captured looks, timecode markers</div>
+    </div>
+    <div class="module-card">
+      <div class="module-name"><div class="module-dot discovery"></div>Discovery</div>
+      <div class="module-files">2 files</div>
+      <div class="module-desc">ArtPoll-based console detection, profile registry with 4 built-in consoles</div>
+    </div>
+    <div class="module-card">
+      <div class="module-name"><div class="module-dot output"></div>Output</div>
+      <div class="module-files">5 files</div>
+      <div class="module-desc">OSC 1.0 client, MIDI output, console-specific command services, trigger router</div>
+    </div>
+    <div class="module-card">
+      <div class="module-name"><div class="module-dot import"></div>Import</div>
+      <div class="module-files">4 files</div>
+      <div class="module-desc">MVR parser, GDTF parser with 80+ attribute mappings, CSV patch parser</div>
+    </div>
+    <div class="module-card">
+      <div class="module-name"><div class="module-dot capture"></div>Capture</div>
+      <div class="module-files">2 files</div>
+      <div class="module-desc">DMX snapshot capture, incoming OSC/MIDI fader-to-parameter mapping</div>
+    </div>
+    <div class="module-card">
+      <div class="module-name"><div class="module-dot health"></div>Health</div>
+      <div class="module-files">3 files</div>
+      <div class="module-desc">Heartbeat monitoring, auto-failover on disconnect, trigger event log</div>
+    </div>
+    <div class="module-card">
+      <div class="module-name"><div class="module-dot advanced"></div>Advanced</div>
+      <div class="module-files">3 files</div>
+      <div class="module-desc">Dynamic sACN priority, MTC timecode sync, complement color analyzer</div>
+    </div>
+    <div class="module-card">
+      <div class="module-name"><div class="module-dot models"></div>Profiles</div>
+      <div class="module-files">4 files</div>
+      <div class="module-desc">GrandMA3, ETC Eos, ChamSys MagicQ, Obsidian Onyx</div>
+    </div>
+    <div class="module-card">
+      <div class="module-name"><div class="module-dot discovery"></div>Export</div>
+      <div class="module-files">1 file</div>
+      <div class="module-desc">Look to DMX CSV table for console operator reference</div>
+    </div>
+  </div>
+
+  <div class="arch-flow"><span class="showup">ShowUp App</span>
+  &boxv;
+  &boxvr;&horbar;&horbar; Perform Screen &horbar;&horbar;&horbar;&rarr; <span class="bridge">TriggerRouter</span> &horbar;&horbar;&rarr; <span class="console">ConsoleOscService</span> &horbar;&horbar;&rarr; <span class="console">Console (OSC/MIDI)</span>
+  &boxv;                                                        &boxv;
+  &boxvr;&horbar;&horbar; DMX Engine &horbar;&horbar;&horbar;&horbar;&horbar;&rarr; <span class="bridge">Universe Roles</span> &horbar;&horbar;&rarr; <span class="showup">SacnTransport</span> &horbar;&horbar;&horbar;&horbar;&rarr; ShowUp Fixtures
+  &boxv;                                 &boxv;
+  &boxvr;&horbar;&horbar; Capture Mode &horbar;&horbar;&horbar;&rarr; <span class="bridge">DmxInputService</span> &larr;&horbar;&horbar; <span class="console">Console DMX (sACN/Art-Net)</span>
+  &boxv;
+  &boxur;&horbar;&horbar; Health Monitor &horbar;&horbar;&rarr; <span class="bridge">FailoverService</span> &horbar;&horbar;&rarr; Auto-takeover on disconnect</div>
+</div>
+
+<!-- ═══ HOW IT WORKS ═══ -->
+<div class="section" id="section-flow">
+  <h2 class="section-title">How It Works</h2>
+  <p class="section-subtitle">The activation flow when a user taps a moment in ShowUp's Perform screen.</p>
+
+  <div style="max-width: 600px; margin: 32px auto;">
+    <div class="flow-step">
+      <div class="flow-dot">1</div>
+      <div class="flow-content">
+        <h4>User taps "Chorus" in Perform</h4>
+        <p>ShowUp applies the Chorus look &mdash; colors, movement, dimmer &mdash; to its own fixtures.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-dot bridge-step">2</div>
+      <div class="flow-content">
+        <h4>TriggerRouter fires the mapped console command</h4>
+        <p>Looks up the trigger binding for this moment and sends the console command.</p>
+        <div class="flow-code">GrandMA3: /gma3/cmd "Go+ Cue 3"</div><br>
+        <div class="flow-code">ETC Eos: /eos/cue/1/3/fire</div><br>
+        <div class="flow-code">ChamSys: /ch/playback/1/go</div><br>
+        <div class="flow-code">Onyx: MSC GO Cue 3</div>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-dot console-step">3</div>
+      <div class="flow-content">
+        <h4>Console executes its Cue 3</h4>
+        <p>The console transitions its fixtures on its own universes.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-dot">4</div>
+      <div class="flow-content">
+        <h4>Both systems transition simultaneously</h4>
+        <p>ShowUp's reactive layer and the console's programmed cues work together. One tap, two systems, coordinated result.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 32px;">
+    <h3>Failover Flow</h3>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 16px;">
+      <div style="padding: 16px; background: var(--bg-deep); border-radius: var(--radius-sm); text-align: center;">
+        <div style="font-size: 24px; margin-bottom: 8px;">&#x1F4E1;</div>
+        <div style="font-size: 13px; font-weight: 600; margin-bottom: 4px;">Heartbeat Lost</div>
+        <div style="font-size: 11px; color: var(--text-muted);">Console stops responding to ArtPoll/OSC pings for 5 seconds.</div>
+      </div>
+      <div style="padding: 16px; background: var(--bg-deep); border-radius: var(--radius-sm); text-align: center;">
+        <div style="font-size: 24px; margin-bottom: 8px;">&#x1F6E1;</div>
+        <div style="font-size: 13px; font-weight: 600; margin-bottom: 4px;">ShowUp Takes Over</div>
+        <div style="font-size: 11px; color: var(--text-muted);">Temporarily claims console-owned universes. Applies fallback look.</div>
+      </div>
+      <div style="padding: 16px; background: var(--bg-deep); border-radius: var(--radius-sm); text-align: center;">
+        <div style="font-size: 24px; margin-bottom: 8px;">&#x1F91D;</div>
+        <div style="font-size: 13px; font-weight: 600; margin-bottom: 4px;">Console Returns</div>
+        <div style="font-size: 11px; color: var(--text-muted);">ShowUp fades back to its own universes over 2 seconds. Seamless handback.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showSection(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('section-' + id).classList.add('active');
+  event.target.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function toggleConsole(card) {
+  const wasExpanded = card.classList.contains('expanded');
+  document.querySelectorAll('.console-card').forEach(c => c.classList.remove('expanded'));
+  if (!wasExpanded) card.classList.add('expanded');
+}
+</script>
+
+</body>
+</html>
