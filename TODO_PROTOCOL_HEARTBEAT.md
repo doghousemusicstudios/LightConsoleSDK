@@ -1,11 +1,11 @@
 # Protocol-Level Heartbeat — Implementation Status
 
 **Status:** Implemented and validated for all 4 console families.
-**Remaining:** ShowUp integration (wiring ProtocolHeartbeat into app providers).
+**Remaining:** ShowUp app integration (wiring ProtocolHeartbeat into app providers).
 
 ---
 
-## Current State
+## Implementation Summary
 
 `ProtocolHeartbeat` in `lib/health/protocol_heartbeat.dart` implements validated, console-specific heartbeat strategies:
 
@@ -14,297 +14,100 @@
 - **MQ:** TCP connect on port 4914. Connection accepted = alive. Requires "Enable remote control" in MQ settings.
 - **Onyx:** TCP Telnet on port 2323. Connection state is the signal; QLActive sent as keep-alive.
 
-`ConsoleOscService.connect()` auto-selects TCP SLIP for Eos and UDP for others based on the profile's heartbeat strategy.
+`ConsoleOscService.connect()` auto-selects TCP SLIP for Eos and UDP for others based on the profile's heartbeat strategy. Tests in `console_osc_service_test.dart` prove the transport selection via a recording mock.
 
 `ProtocolHeartbeat.fromFailoverConfig()` wires `FailoverConfig.timeoutSeconds` to heartbeat interval and missedThreshold.
 
----
+### SDK Files
 
-## What Needs to Change
+| File | What It Does |
+|------|-------------|
+| `lib/health/protocol_heartbeat.dart` | Per-strategy probe logic (push stream, HTTP, TCP connect, Telnet) |
+| `lib/models/console_profile.dart` | `HeartbeatConfig` + `HeartbeatStrategy` enum |
+| `lib/output/osc_client.dart` | UDP + TCP SLIP transport modes |
+| `lib/output/console_osc_service.dart` | Auto-selects transport from profile |
+| `lib/profiles/etc_eos.dart` | `tcpPushStream` on 3037, `streamPrefix: '/eos/out/'` |
+| `lib/profiles/grandma3.dart` | `httpGet` on 8080 |
+| `lib/profiles/chamsys_mq.dart` | `tcpConnect` on 4914 |
+| `lib/profiles/onyx.dart` | `telnetPoll` on 2323 |
 
-### 1. Add heartbeat fields to ConsoleProfile (~10 lines)
+### Test Coverage
 
-In `lib/models/console_profile.dart`:
-
-```dart
-class ConsoleProfile {
-  // ... existing fields ...
-
-  /// OSC address to send as a heartbeat ping.
-  /// Must be a non-destructive query that the console responds to.
-  final String? heartbeatAddress;
-
-  /// Expected response address prefix to confirm the console is alive.
-  /// If null, any response on the incoming stream counts as alive.
-  final String? heartbeatResponsePrefix;
-}
-```
-
-### 2. Per-console heartbeat configuration
-
-| Console | Heartbeat Query | Expected Response | Notes |
-|---------|----------------|-------------------|-------|
-| **ETC Eos** | `/eos/get/version` | `/eos/out/get/version` | Best — returns version string reliably |
-| **GrandMA3** | `/gma3/cmd,s,""` | Any response on `/gma3/` | Empty command is a no-op; MA3 may not respond. Alternative: check if `/gma3/Page1/Fader201` returns a value via Companion Plugin |
-| **ChamSys MQ** | `/ch/playback/1/level` | Response with level value | Returns current level; lightweight |
-| **Onyx** | N/A (Telnet `QLActive`) | TCP response | Already working via TelnetClient |
-
-### 3. Implement real _pingOsc() (~30 lines)
-
-In `lib/health/protocol_heartbeat.dart`, replace the current stub:
-
-```dart
-Future<bool> _pingOsc() async {
-  if (_oscClient == null || !_oscClient.isConnected) return false;
-  if (_heartbeatAddress == null) return _oscClient.isConnected; // fallback
-
-  // Send the heartbeat query
-  _oscClient.send(_heartbeatAddress);
-
-  // Wait for any response within timeout
-  try {
-    final response = await _oscClient.messages
-        .where((msg) => _heartbeatResponsePrefix == null ||
-            msg.address.startsWith(_heartbeatResponsePrefix))
-        .first
-        .timeout(timeout);
-    return true; // got a response
-  } on TimeoutException {
-    return false; // no response within timeout
-  }
-}
-```
-
-### 4. Update built-in profiles
-
-In `lib/profiles/etc_eos.dart`:
-```dart
-heartbeatAddress: '/eos/get/version',
-heartbeatResponsePrefix: '/eos/out/',
-```
-
-In `lib/profiles/grandma3.dart`:
-```dart
-// MA3's response behavior is less reliable for heartbeat.
-// With Companion Plugin: poll /showup/heartbeat
-// Without plugin: fall back to isConnected check
-heartbeatAddress: null, // TODO: test with MA3 onPC
-```
-
-In `lib/profiles/chamsys_mq.dart`:
-```dart
-heartbeatAddress: '/ch/playback/1/level',
-heartbeatResponsePrefix: null, // any response counts
-```
+| Test File | Tests | Coverage |
+|-----------|:-----:|---------|
+| `protocol_heartbeat_test.dart` | 15 | Strategy construction, fromFailoverConfig timing, tcpConnect offline detection, event stream wiring |
+| `console_osc_service_test.dart` | 9 | Transport selection via recording mock (tcpSlip for Eos, udp for others, explicit override) |
+| `health_monitor_stream_test.dart` | 8 | fromStream isOnline tracking, uptime, event relay |
+| `health_failover_test.dart` | 17 | Full FailoverService with requireConfirmation, fade timing |
 
 ---
 
-## Validated Results (2026-04-11)
+## Validated Results (2026-04-11, on this Mac)
 
-### ETC Eos Nomad — VALIDATED on localhost
+### ETC Eos Nomad
 
-- **Port 3037** (Third-Party OSC) with **TCP SLIP** encoding works perfectly
+- **Port 3037** (Third-Party OSC) with **TCP SLIP** encoding works
 - Port 3032 (native) does not respond to third-party connections
 - UDP does not work on any port — Eos requires TCP for third-party OSC
-- **Eos pushes `/eos/out/user` at ~10Hz as soon as a TCP client connects** — no query needed
-- Heartbeat strategy: connect TCP SLIP on 3037, listen for any `/eos/out/` message. If stream stops → offline.
-- This is a **push-based heartbeat** — superior to query/response because there's no round-trip latency to manage
+- Eos pushes `/eos/out/user` at ~10Hz as soon as a TCP client connects — no query needed
 - Eos Show Control > OSC TX must be enabled
 
-### GrandMA3 onPC — VALIDATED on localhost
+### GrandMA3 onPC
 
-- MA3 **receives and executes OSC commands** (fader moved on `/gma3/Page1/Fader201`)
-- MA3 **does NOT send any OSC responses** to any query — confirmed with 8 different address patterns
-- Port configuration: MA3's "Port" field is the port it **listens on** (not sends to). Conflicted with localhost when set to 8000 (MA3 bound `*:8000`). Changed to 9000 — works.
-- TCP tested on ports 9000, 8000, 9001 — all refused. MA3 onPC (Mac) does not expose a TCP OSC listener.
-- OSC Echo pattern (`/gma3/cmd "Echo 'heartbeat'"`) — no response even with Send Command = Yes.
-- **HTTP Web Remote on port 8080 — WORKS.** `GET http://10.0.0.134:8080` returns HTTP 200 with HTML body.
-  No OSC config needed, no Companion Plugin needed, no session-specific settings.
-  This is the MA3 heartbeat: HTTP 200 = alive, connection refused/timeout = offline.
-- Companion Plugin remains valuable for fader feedback and cue state, but is NOT required for heartbeat.
-- **MA3 requires an active network session** for OSC to work. No session = no OSC processing.
-- MA3's Destination IP in OSC config must NOT be 127.0.0.1 — use the machine's LAN IP (e.g., 10.0.0.134)
+- MA3 receives and executes OSC commands (fader moved on `/gma3/Page1/Fader201`)
+- MA3 does NOT send any OSC responses to any query — confirmed with 8 different address patterns
+- OSC Echo pattern (`/gma3/cmd "Echo 'heartbeat'"`) — no response even with Send Command = Yes
+- TCP on ports 9000, 8000, 9001 — all refused. MA3 onPC (Mac) does not expose TCP OSC.
+- **HTTP Web Remote on port 8080 — returns HTTP 200.** No OSC config needed.
+- MA3's "Port" field is the port it listens on. Conflicted with localhost when set to 8000 (MA3 bound `*:8000`). Changed to 9000 — works.
+- MA3 requires an active network session for OSC processing.
+- MA3's Destination IP must NOT be 127.0.0.1 — use the machine's LAN IP.
+- Companion Plugin remains valuable for fader feedback/cue state but is NOT required for heartbeat.
 
-### ChamSys MagicQ — VALIDATED on localhost
+### ChamSys MagicQ PC
 
-- **TCP port 4914 accepts connections** when "Enable remote control" and "Enable remote access" are both set to Yes in Setup > View Settings > Network.
-- No HTTP web server on any port (8080, 80, etc.) — MagicQ PC does not expose HTTP.
-- CREP on UDP 6553 does not respond to commands in Demo Mode.
-- OSC still requires hardware dongle for Unlocked Mode.
-- **Heartbeat strategy:** TCP connect to port 4914. Connection accepted = alive. Connection refused = offline. No dongle needed.
-- MagicQ closes the TCP connection after receiving an unrecognized command, but the initial TCP handshake succeeding is sufficient for heartbeat.
+- TCP port 4914 accepts connections when "Enable remote control" and "Enable remote access" are both Yes in Setup > Net.
+- No HTTP web server on any port — MagicQ PC does not expose HTTP.
+- CREP on UDP 6553 does not respond in Demo Mode.
+- OSC requires hardware dongle for Unlocked Mode.
+- MagicQ closes TCP after receiving an unrecognized command, but the handshake succeeding is sufficient.
 
-### Updated Heartbeat Configuration
+### Heartbeat Configuration Summary
 
-| Console | Protocol | Port | Framing | Heartbeat Method | Confidence |
-|---------|----------|------|---------|-----------------|:----------:|
-| **ETC Eos** | TCP | 3037 | SLIP | **Push-based:** listen for `/eos/out/` stream. No query needed. | **High** |
-| **GrandMA3** | HTTP | 8080 | HTTP GET | **Web Remote ping:** `GET http://<ip>:8080` → HTTP 200 = alive. No OSC config needed. | **Validated** |
-| **ChamSys MQ** | TCP connect | 4914 | TCP | **TCP connection state:** connect to port 4914 = alive. Requires "Enable remote control" + "Enable remote access" in Setup > Net. | **Validated** |
-| **Onyx** | TCP | 2323 | Telnet | **TCP connection state + QLActive polling.** Already implemented. | **High** |
+| Console | Strategy | Port | Validated | Plugin/Dongle? |
+|---------|----------|:----:|:---------:|:--------------:|
+| **ETC Eos** | TCP SLIP push stream | 3037 | Yes | No |
+| **GrandMA3** | HTTP GET | 8080 | Yes | No |
+| **ChamSys MQ** | TCP connect | 4914 | Yes | No |
+| **Onyx** | TCP Telnet | 2323 | Implemented | No (Onyx Manager only) |
 
 ---
 
-## Single-Machine Validation Plan
+## Remaining: ShowUp App Integration
 
-Most of this can be validated on a single Mac without buying hardware or setting up a second machine.
+The SDK heartbeat is complete. ShowUp needs to:
 
-### What runs on the same Mac as ShowUp
+1. Instantiate `ProtocolHeartbeat` from the active `ConsoleProfile.heartbeat` config
+2. Wire `ProtocolHeartbeat.events` to `ConsoleHealthMonitor.fromStream()`
+3. Wire `ConsoleHealthMonitor` to `FailoverService`
+4. Surface `monitor.isOnline` in the console status indicator (top bar dot)
+5. Use `ConsoleOscService.connect()` instead of raw `OscClient.connect()` (auto-selects transport)
 
-| Console Software | macOS? | Cost | Network Setup | Heartbeat Testable? |
-|-----------------|:------:|------|---------------|:-------------------:|
-| **ETC Eos Nomad** | Yes | Free | `127.0.0.1:3032` (TCP) | **Yes — best target** |
-| **MA3 onPC** | Yes | Free | Use LAN IP, not 127.0.0.1 (MA3 blocks localhost OSC port) | **Yes — with workaround** |
-| **MagicQ PC** | Yes | Free download, but OSC needs ChamSys hardware dongle (~$100) | `127.0.0.1:user-port` | **Only with dongle** |
-| **Onyx** | No (Windows only) | Free | Needs Windows VM (Parallels/UTM) + bridged network | **Only with VM** |
-
-### Phase A: Eos on localhost (30 min, zero cost)
-
-This is the fastest path to a validated heartbeat and should be done first.
-
-```
-1. Download ETC Eos Nomad from etcconnect.com (free, macOS)
-2. Launch Eos, create new show
-3. Enable OSC: Setup > Show Control > OSC
-   - OSC RX: enabled
-   - OSC TX: enabled
-   - Third-Party OSC port: 3037 (or use native 3032)
-4. In the SDK test:
-   a. Connect OscClient to 127.0.0.1:3032 (TCP)
-   b. Send /eos/get/version
-   c. Listen for /eos/out/get/version response
-   d. Verify response arrives within 1 second
-5. Test offline detection:
-   a. Quit Eos Nomad
-   b. Verify heartbeat detects offline within missedThreshold * interval
-   c. Relaunch Eos
-   d. Verify heartbeat detects reconnected
-6. Record: exact response format, latency, any quirks
-```
-
-**What this proves:** Full query/response heartbeat cycle for the richest OSC console. If this works, the heartbeat pipeline is validated end-to-end.
-
-### Phase B: MA3 on localhost (45 min, zero cost)
-
-```
-1. Download MA3 onPC from malighting.com (free, macOS)
-2. Launch MA3 onPC, create new session
-3. Enable OSC: Setup > Network > Protocols
-   - Add OSC "In & Out" configuration
-   - Set destination IP to the Mac's LAN IP (e.g., 192.168.1.x)
-   - Do NOT use 127.0.0.1 (MA3 blocks the port on localhost)
-   - Note the TX/RX ports
-4. In the SDK test:
-   a. Connect OscClient to the Mac's LAN IP on the configured port
-   b. Send /gma3/cmd "" (empty command, no-op)
-   c. Listen for any /gma3/ response
-   d. Check: does MA3 respond to empty commands?
-5. If no response to empty command:
-   a. Try: /gma3/Page1/Fader201 (fader query)
-   b. Try: install Companion Plugin, send /showup/heartbeat
-   c. Determine which approach gets a response
-6. Test offline detection:
-   a. Quit MA3 or disable the OSC session
-   b. Verify heartbeat detects offline
-7. Record: which query works, response format, latency
-```
-
-**What this proves:** Whether MA3 responds to any OSC query at all, and which address to use for heartbeat. This is the biggest unknown — MA3's OSC feedback is sequence-level, not query/response, so the heartbeat address might need to be Companion Plugin-specific.
-
-### Phase C: MagicQ with dongle (30 min, ~$100 if no dongle)
-
-**Skip this phase if no ChamSys hardware is available.** MQ heartbeat can be deferred.
-
-```
-1. Install MagicQ PC (free, macOS)
-2. Connect ChamSys dongle (Mini Connect, Compact Connect, etc.)
-3. Enable OSC: Setup > View Settings > Network > OSC TX/RX ports
-4. Send /ch/playback/1/level, listen for response
-5. Test offline detection
-```
-
-### Phase D: Onyx on Windows VM (1 hour, zero cost if VM available)
-
-**Skip this phase initially.** Onyx Telnet heartbeat already works via TCP connection state. This is for validating the full QLActive polling path.
-
-```
-1. Install Windows VM (Parallels, UTM, or real Windows machine)
-2. Install Onyx (free, 1 universe)
-3. Install Onyx Manager, enable Telnet Server
-4. Bridge VM network to Mac's LAN
-5. Connect TelnetClient from Mac to VM's IP:2323
-6. Send QLActive, verify response
-7. Test offline: stop Onyx Manager, verify TCP disconnect detected
-```
-
-### Recommended Order
-
-```
-Phase A (Eos)  →  takes 30 min, validates the full pipeline
-Phase B (MA3)  →  takes 45 min, resolves the biggest unknown
-Phase C (MQ)   →  only if you have a dongle
-Phase D (Onyx) →  only if you need to validate Telnet beyond connection state
-```
-
-After Phase A alone, the heartbeat can ship for Eos with confidence. MA3 needs Phase B to determine the right query address. MQ and Onyx can defer.
+All of this is provider wiring in `lights_providers.dart` — no SDK changes needed.
 
 ---
 
-## Loopback Integration Test (no console software needed)
+## Probe Scripts (tool/)
 
-Even before installing any console software, we can validate the heartbeat pipeline with a mock OSC responder on localhost:
+Retained for re-testing against firmware updates:
 
-```dart
-test('heartbeat detects online/offline via OSC query/response', () async {
-  // Start a mock OSC "console" on localhost that responds to queries
-  final mockConsole = await RawDatagramSocket.bind('127.0.0.1', 0);
-  final mockPort = mockConsole.port;
-
-  // Configure mock to respond to any OSC query with a version response
-  mockConsole.listen((event) {
-    if (event == RawSocketEvent.read) {
-      final datagram = mockConsole.receive();
-      // Echo back a response
-      final response = OscClient.encodeOscMessage(
-        OscMessage(address: '/eos/out/get/version', args: ['3.4.2']),
-      );
-      mockConsole.send(response, datagram!.address, datagram.port);
-    }
-  });
-
-  // Connect the SDK's heartbeat to the mock
-  final oscClient = OscClient();
-  await oscClient.connect('127.0.0.1', mockPort);
-  final heartbeat = ProtocolHeartbeat(
-    oscClient: oscClient,
-    protocol: ConsoleProtocol.osc,
-    interval: Duration(milliseconds: 200),
-    missedThreshold: 2,
-  );
-
-  // Verify online detection
-  heartbeat.start();
-  await Future.delayed(Duration(milliseconds: 500));
-  expect(heartbeat.isOnline, isTrue);
-
-  // Kill the mock → verify offline detection
-  mockConsole.close();
-  await Future.delayed(Duration(seconds: 2));
-  expect(heartbeat.isOnline, isFalse);
-
-  heartbeat.dispose();
-  oscClient.dispose();
-});
-```
-
-This test validates the full pipeline (send query → receive response → track state → detect timeout) without any console software installed. It can run in CI.
-
----
-
-## What This Unblocks
-
-Once protocol heartbeat is validated:
-- Health monitoring works on broadcast-filtered networks
-- Health monitoring works with manual setup (no ArtPoll)
-- Failover can be promoted from "experimental" to "production-ready"
-- Console status indicator in ShowUp's top bar is trustworthy
+| Script | Console | What It Tests |
+|--------|---------|---------------|
+| `eos_heartbeat_probe.dart` | Eos | TCP length-prefix on 3032 (failed) |
+| `eos_heartbeat_probe2.dart` | Eos | All framing modes — discovered TCP SLIP on 3037 works |
+| `ma3_heartbeat_probe.dart` | MA3 | UDP OSC queries (no responses) |
+| `ma3_fader_test.dart` | MA3 | Fader movement (confirmed commands arrive) |
+| `ma3_echo_and_http_probe.dart` | MA3 | Echo pattern (failed) + HTTP 8080 (success) |
+| `ma3_tcp_probe.dart` | MA3 | TCP on 9000/8000/9001 (all refused) |
+| `mq_heartbeat_probe.dart` | MQ | HTTP + CREP (both failed in Demo Mode) |
+| `mq_tcp_probe.dart` | MQ | TCP 4914 (success) + UDP ports |
