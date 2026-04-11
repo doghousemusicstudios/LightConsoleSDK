@@ -111,11 +111,11 @@ heartbeatResponsePrefix: null, // any response counts
 - MA3 **does NOT send any OSC responses** to any query — confirmed with 8 different address patterns
 - Port configuration: MA3's "Port" field is the port it **listens on** (not sends to). Conflicted with localhost when set to 8000 (MA3 bound `*:8000`). Changed to 9000 — works.
 - TCP tested on ports 9000, 8000, 9001 — all refused. MA3 onPC (Mac) does not expose a TCP OSC listener.
-  (The sstaub/gma3 Arduino library documents TCP port 9000, but this may only work on dedicated MA3 console hardware.)
-- **Heartbeat strategy for MA3 without Companion Plugin:** Cannot do query/response heartbeat. Options:
-  1. Use DMX sniffing (sACN input) to detect if MA3 is still outputting
-  2. Install Companion Plugin which adds explicit `/showup/heartbeat` response
-  3. Treat UDP socket connectivity as a best-effort signal (not reliable)
+- OSC Echo pattern (`/gma3/cmd "Echo 'heartbeat'"`) — no response even with Send Command = Yes.
+- **HTTP Web Remote on port 8080 — WORKS.** `GET http://10.0.0.134:8080` returns HTTP 200 with HTML body.
+  No OSC config needed, no Companion Plugin needed, no session-specific settings.
+  This is the MA3 heartbeat: HTTP 200 = alive, connection refused/timeout = offline.
+- Companion Plugin remains valuable for fader feedback and cue state, but is NOT required for heartbeat.
 - **MA3 requires an active network session** for OSC to work. No session = no OSC processing.
 - MA3's Destination IP in OSC config must NOT be 127.0.0.1 — use the machine's LAN IP (e.g., 10.0.0.134)
 
@@ -124,7 +124,7 @@ heartbeatResponsePrefix: null, // any response counts
 | Console | Protocol | Port | Framing | Heartbeat Method | Confidence |
 |---------|----------|------|---------|-----------------|:----------:|
 | **ETC Eos** | TCP | 3037 | SLIP | **Push-based:** listen for `/eos/out/` stream. No query needed. | **High** |
-| **GrandMA3** | UDP | user-set | Raw | **No native heartbeat.** Companion Plugin or DMX sniffing required. | **Low** |
+| **GrandMA3** | HTTP | 8080 | HTTP GET | **Web Remote ping:** `GET http://<ip>:8080` → HTTP 200 = alive. No OSC config needed. | **Validated** |
 | **ChamSys MQ** | UDP | user-set | Raw | Untested. Query `/ch/playback/1/level` — needs hardware dongle. | **Unknown** |
 | **Onyx** | TCP | 2323 | Telnet | **TCP connection state + QLActive polling.** Already implemented. | **High** |
 
