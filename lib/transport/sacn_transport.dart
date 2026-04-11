@@ -56,11 +56,20 @@ class SacnTransport {
 
   bool get isConnected => _isConnected;
   String? get targetIp => _targetIp;
-  List<String> get targetIps =>
-      _targetIp != null ? [_targetIp!] : [];
+  List<String> get targetIps {
+    final ips = <String>{};
+    if (_targetIp != null) ips.add(_targetIp!);
+    ips.addAll(_unicastTargets.values);
+    return ips.toList();
+  }
 
   /// Configure sACN output from a list of [SacnTarget]s.
+  ///
+  /// Replaces all existing targets — removes stale priorities and
+  /// unicast destinations that are no longer in the new configuration.
   void configureSacnTargets(List<SacnTarget> targets) {
+    _priorities.clear();
+    _unicastTargets.clear();
     for (final target in targets) {
       _priorities[target.universe] = target.priority;
       if (!target.multicast && target.ip != null) {

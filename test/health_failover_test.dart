@@ -7,92 +7,14 @@ import 'package:light_console_sdk/health/console_health_monitor.dart';
 import 'package:light_console_sdk/health/trigger_event_log.dart';
 import 'package:light_console_sdk/models/console_trigger.dart';
 
-/// Test FailoverService by directly injecting health events.
-/// We subclass FailoverService to bypass the ConsoleHealthMonitor dependency
-/// and feed events directly from a StreamController.
-class TestableFailoverService {
-  final StreamController<ConsoleHealthEvent> _eventController;
-  final FailoverConfig _config;
-
-  void Function(List<int>)? onFailoverActivated;
-  void Function(List<int>)? onFailoverDeactivated;
-  void Function(Map<int, UniverseRole>)? onUniverseRolesChanged;
-
-  bool _isFailoverActive = false;
-  final List<int> _overriddenUniverses = [];
-  Map<int, UniverseConfig>? _originalRoles;
-  StreamSubscription<ConsoleHealthEvent>? _sub;
-
-  TestableFailoverService({
-    required StreamController<ConsoleHealthEvent> events,
-    FailoverConfig config = const FailoverConfig(),
-  })  : _eventController = events,
-        _config = config;
-
-  bool get isFailoverActive => _isFailoverActive;
-  List<int> get overriddenUniverses => List.unmodifiable(_overriddenUniverses);
-
-  void start(Map<int, UniverseConfig> universeRoles) {
-    if (!_config.enabled) return;
-    _originalRoles = Map.from(universeRoles);
-    _sub = _eventController.stream.listen(_onEvent);
-  }
-
-  void _onEvent(ConsoleHealthEvent event) {
-    switch (event.type) {
-      case ConsoleHealthEventType.offline:
-        _activateFailover();
-      case ConsoleHealthEventType.reconnected:
-      case ConsoleHealthEventType.online:
-        if (_isFailoverActive) _deactivateFailover();
-    }
-  }
-
-  void _activateFailover() {
-    if (_isFailoverActive || _originalRoles == null) return;
-    _isFailoverActive = true;
-    final newRoles = <int, UniverseRole>{};
-    _overriddenUniverses.clear();
-    for (final entry in _originalRoles!.entries) {
-      if (entry.value.role == UniverseRole.consoleOwned) {
-        newRoles[entry.key] = UniverseRole.showupOwned;
-        _overriddenUniverses.add(entry.key);
-      }
-    }
-    if (_overriddenUniverses.isNotEmpty) {
-      onUniverseRolesChanged?.call(newRoles);
-      onFailoverActivated?.call(List.from(_overriddenUniverses));
-    }
-  }
-
-  void _deactivateFailover() {
-    if (!_isFailoverActive || _originalRoles == null) return;
-    final restoredRoles = <int, UniverseRole>{};
-    for (final universe in _overriddenUniverses) {
-      final original = _originalRoles![universe];
-      if (original != null) restoredRoles[universe] = original.role;
-    }
-    final restored = List<int>.from(_overriddenUniverses);
-    _overriddenUniverses.clear();
-    _isFailoverActive = false;
-    if (restored.isNotEmpty) {
-      onUniverseRolesChanged?.call(restoredRoles);
-      onFailoverDeactivated?.call(restored);
-    }
-  }
-
-  void stop() {
-    _sub?.cancel();
-    if (_isFailoverActive) _deactivateFailover();
-  }
-}
-
 void main() {
-  group('Failover behavior', () {
+  group('FailoverService (production implementation)', () {
     late StreamController<ConsoleHealthEvent> events;
+    late ConsoleHealthMonitor monitor;
 
     setUp(() {
       events = StreamController<ConsoleHealthEvent>.broadcast();
+      monitor = ConsoleHealthMonitor.fromStream(events.stream);
     });
 
     tearDown(() {
@@ -100,11 +22,13 @@ void main() {
     });
 
     test('does nothing when disabled', () async {
-      final service = TestableFailoverService(
-        events: events,
+      final service = FailoverService(
+        healthMonitor: monitor,
         config: const FailoverConfig(enabled: false),
       );
       service.onUniverseRolesChanged = (_) => fail('should not be called');
+      service.onFailoverActivated = (_) => fail('should not be called');
+
       service.start({
         0: const UniverseConfig(universe: 0, role: UniverseRole.consoleOwned),
       });
@@ -117,10 +41,125 @@ void main() {
       expect(service.isFailoverActive, isFalse);
     });
 
-    test('takes over console universes on offline', () async {
-      final service = TestableFailoverService(
-        events: events,
-        config: const FailoverConfig(enabled: true),
+    test('with requireConfirmation=true, does NOT auto-activate', () async {
+      final service = FailoverService(
+        healthMonitor: monitor,
+        config: const FailoverConfig(enabled: true, requireConfirmation: true),
+      );
+
+      service.onUniverseRolesChanged = (_) => fail('should not auto-activate');
+      service.onFailoverActivated = (_) => fail('should not auto-activate');
+
+      List<int>? pendingUniverses;
+      service.onConfirmationRequired = (u) => pendingUniverses = u;
+
+      service.start({
+        0: const UniverseConfig(universe: 0, role: UniverseRole.consoleOwned),
+      });
+
+      events.add(ConsoleHealthEvent(
+        type: ConsoleHealthEventType.offline,
+        timestamp: DateTime.now(),
+      ));
+      await Future.delayed(Duration.zero);
+
+      // Should be pending, NOT active
+      expect(service.isFailoverActive, isFalse);
+      expect(service.isPendingConfirmation, isTrue);
+      expect(pendingUniverses, [0]);
+    });
+
+    test('confirmFailover activates after pending', () async {
+      final service = FailoverService(
+        healthMonitor: monitor,
+        config: const FailoverConfig(enabled: true, requireConfirmation: true),
+      );
+
+      Map<int, UniverseRole>? changedRoles;
+      List<int>? activated;
+      service.onConfirmationRequired = (_) {};
+      service.onUniverseRolesChanged = (r) => changedRoles = r;
+      service.onFailoverActivated = (u) => activated = u;
+
+      service.start({
+        0: const UniverseConfig(universe: 0, role: UniverseRole.consoleOwned),
+        4: const UniverseConfig(universe: 4, role: UniverseRole.showupOwned),
+      });
+
+      events.add(ConsoleHealthEvent(
+        type: ConsoleHealthEventType.offline,
+        timestamp: DateTime.now(),
+      ));
+      await Future.delayed(Duration.zero);
+
+      expect(service.isPendingConfirmation, isTrue);
+      service.confirmFailover();
+
+      expect(service.isFailoverActive, isTrue);
+      expect(service.isPendingConfirmation, isFalse);
+      expect(changedRoles?[0], UniverseRole.showupOwned);
+      expect(changedRoles?.containsKey(4), isFalse);
+      expect(activated, [0]);
+    });
+
+    test('cancelFailover rejects pending failover', () async {
+      final service = FailoverService(
+        healthMonitor: monitor,
+        config: const FailoverConfig(enabled: true, requireConfirmation: true),
+      );
+
+      service.onConfirmationRequired = (_) {};
+
+      service.start({
+        0: const UniverseConfig(universe: 0, role: UniverseRole.consoleOwned),
+      });
+
+      events.add(ConsoleHealthEvent(
+        type: ConsoleHealthEventType.offline,
+        timestamp: DateTime.now(),
+      ));
+      await Future.delayed(Duration.zero);
+      expect(service.isPendingConfirmation, isTrue);
+
+      service.cancelFailover();
+      expect(service.isPendingConfirmation, isFalse);
+      expect(service.isFailoverActive, isFalse);
+    });
+
+    test('console reconnect cancels pending confirmation', () async {
+      final service = FailoverService(
+        healthMonitor: monitor,
+        config: const FailoverConfig(enabled: true, requireConfirmation: true),
+      );
+
+      service.onConfirmationRequired = (_) {};
+
+      service.start({
+        0: const UniverseConfig(universe: 0, role: UniverseRole.consoleOwned),
+      });
+
+      events.add(ConsoleHealthEvent(
+        type: ConsoleHealthEventType.offline,
+        timestamp: DateTime.now(),
+      ));
+      await Future.delayed(Duration.zero);
+      expect(service.isPendingConfirmation, isTrue);
+
+      // Console comes back while waiting for confirmation
+      events.add(ConsoleHealthEvent(
+        type: ConsoleHealthEventType.online,
+        timestamp: DateTime.now(),
+      ));
+      await Future.delayed(Duration.zero);
+
+      expect(service.isPendingConfirmation, isFalse);
+      expect(service.isFailoverActive, isFalse);
+    });
+
+    test('with requireConfirmation=false, activates immediately', () async {
+      final service = FailoverService(
+        healthMonitor: monitor,
+        config: const FailoverConfig(enabled: true, requireConfirmation: false),
       );
 
       Map<int, UniverseRole>? changedRoles;
@@ -131,7 +170,6 @@ void main() {
       service.start({
         0: const UniverseConfig(universe: 0, role: UniverseRole.consoleOwned),
         1: const UniverseConfig(universe: 1, role: UniverseRole.consoleOwned),
-        4: const UniverseConfig(universe: 4, role: UniverseRole.showupOwned),
       });
 
       events.add(ConsoleHealthEvent(
@@ -143,14 +181,13 @@ void main() {
       expect(service.isFailoverActive, isTrue);
       expect(changedRoles?[0], UniverseRole.showupOwned);
       expect(changedRoles?[1], UniverseRole.showupOwned);
-      expect(changedRoles?.containsKey(4), isFalse);
       expect(activated, [0, 1]);
     });
 
-    test('restores on reconnect', () async {
-      final service = TestableFailoverService(
-        events: events,
-        config: const FailoverConfig(enabled: true),
+    test('restores universe roles on reconnect', () async {
+      final service = FailoverService(
+        healthMonitor: monitor,
+        config: const FailoverConfig(enabled: true, requireConfirmation: false),
       );
 
       List<int>? deactivated;
@@ -162,11 +199,16 @@ void main() {
         0: const UniverseConfig(universe: 0, role: UniverseRole.consoleOwned),
       });
 
-      events.add(ConsoleHealthEvent(type: ConsoleHealthEventType.offline, timestamp: DateTime.now()));
+      events.add(ConsoleHealthEvent(
+        type: ConsoleHealthEventType.offline,
+        timestamp: DateTime.now(),
+      ));
       await Future.delayed(Duration.zero);
-      expect(service.isFailoverActive, isTrue);
 
-      events.add(ConsoleHealthEvent(type: ConsoleHealthEventType.reconnected, timestamp: DateTime.now()));
+      events.add(ConsoleHealthEvent(
+        type: ConsoleHealthEventType.reconnected,
+        timestamp: DateTime.now(),
+      ));
       await Future.delayed(Duration.zero);
 
       expect(service.isFailoverActive, isFalse);
@@ -174,29 +216,37 @@ void main() {
     });
 
     test('does not double-activate', () async {
-      final service = TestableFailoverService(
-        events: events,
-        config: const FailoverConfig(enabled: true),
+      final service = FailoverService(
+        healthMonitor: monitor,
+        config: const FailoverConfig(enabled: true, requireConfirmation: false),
       );
 
       int count = 0;
       service.onUniverseRolesChanged = (_) {};
       service.onFailoverActivated = (_) => count++;
 
-      service.start({0: const UniverseConfig(universe: 0, role: UniverseRole.consoleOwned)});
+      service.start({
+        0: const UniverseConfig(universe: 0, role: UniverseRole.consoleOwned),
+      });
 
-      events.add(ConsoleHealthEvent(type: ConsoleHealthEventType.offline, timestamp: DateTime.now()));
+      events.add(ConsoleHealthEvent(
+        type: ConsoleHealthEventType.offline,
+        timestamp: DateTime.now(),
+      ));
       await Future.delayed(Duration.zero);
-      events.add(ConsoleHealthEvent(type: ConsoleHealthEventType.offline, timestamp: DateTime.now()));
+      events.add(ConsoleHealthEvent(
+        type: ConsoleHealthEventType.offline,
+        timestamp: DateTime.now(),
+      ));
       await Future.delayed(Duration.zero);
 
       expect(count, 1);
     });
 
     test('stop() deactivates active failover', () async {
-      final service = TestableFailoverService(
-        events: events,
-        config: const FailoverConfig(enabled: true),
+      final service = FailoverService(
+        healthMonitor: monitor,
+        config: const FailoverConfig(enabled: true, requireConfirmation: false),
       );
 
       List<int>? deactivated;
@@ -204,13 +254,35 @@ void main() {
       service.onFailoverActivated = (_) {};
       service.onFailoverDeactivated = (u) => deactivated = u;
 
-      service.start({0: const UniverseConfig(universe: 0, role: UniverseRole.consoleOwned)});
-      events.add(ConsoleHealthEvent(type: ConsoleHealthEventType.offline, timestamp: DateTime.now()));
+      service.start({
+        0: const UniverseConfig(universe: 0, role: UniverseRole.consoleOwned),
+      });
+
+      events.add(ConsoleHealthEvent(
+        type: ConsoleHealthEventType.offline,
+        timestamp: DateTime.now(),
+      ));
       await Future.delayed(Duration.zero);
 
       service.stop();
       expect(service.isFailoverActive, isFalse);
       expect(deactivated, [0]);
+    });
+
+    test('exposes fade timing from config', () {
+      final service = FailoverService(
+        healthMonitor: monitor,
+        config: const FailoverConfig(
+          enabled: true,
+          fadeInMs: 5000,
+          fadeBackMs: 3000,
+          fallbackMode: FailoverMode.ambient,
+        ),
+      );
+
+      expect(service.fadeInMs, 5000);
+      expect(service.fadeBackMs, 3000);
+      expect(service.fallbackMode, FailoverMode.ambient);
     });
   });
 
@@ -285,7 +357,7 @@ void main() {
 
       await Future.delayed(Duration.zero);
       expect(snapshots, hasLength(1));
-      expect(snapshots[0], hasLength(1)); // full list with 1 event
+      expect(snapshots[0], hasLength(1));
     });
   });
 }

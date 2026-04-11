@@ -82,10 +82,19 @@ class MidiOutput {
   }
 
   /// Open a MIDI output device.
+  ///
+  /// Sets [isOpen] only after the backend successfully opens.
+  /// If the backend throws, the device remains closed.
   Future<void> open(String deviceId) async {
     _deviceId = deviceId;
-    _isOpen = true;
-    await _backend?.openDevice(deviceId);
+    try {
+      await _backend?.openDevice(deviceId);
+      _isOpen = true;
+    } catch (_) {
+      _deviceId = null;
+      _isOpen = false;
+      rethrow;
+    }
   }
 
   /// Send a Note On message.

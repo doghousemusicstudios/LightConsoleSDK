@@ -7,39 +7,60 @@ import '../discovery/console_detector.dart';
 /// Emits [ConsoleHealthEvent]s when the console comes online, goes offline,
 /// or reconnects after a dropout.
 class ConsoleHealthMonitor {
-  final ConsoleDetector _detector;
+  final ConsoleDetector? _detector;
   final StreamController<ConsoleHealthEvent> _eventController =
       StreamController<ConsoleHealthEvent>.broadcast();
 
+  /// If provided, this external stream is used instead of the detector's
+  /// state stream. Used for testing without a real ConsoleDetector.
+  final Stream<ConsoleHealthEvent>? _externalEventStream;
+
   StreamSubscription<ConsoleConnectionState>? _stateSub;
+  StreamSubscription<ConsoleHealthEvent>? _externalSub;
   DateTime? _lastOnlineAt;
   DateTime? _lastOfflineAt;
   Duration _uptime = Duration.zero;
 
   ConsoleHealthMonitor({required ConsoleDetector detector})
-      : _detector = detector;
+      : _detector = detector,
+        _externalEventStream = null;
+
+  /// Creates a monitor that emits events from an external stream.
+  /// Used for testing FailoverService without a real ConsoleDetector.
+  ConsoleHealthMonitor.fromStream(Stream<ConsoleHealthEvent> eventStream)
+      : _detector = null,
+        _externalEventStream = eventStream;
 
   /// Stream of health events.
-  Stream<ConsoleHealthEvent> get events => _eventController.stream;
+  Stream<ConsoleHealthEvent> get events {
+    if (_externalEventStream != null) return _externalEventStream;
+    return _eventController.stream;
+  }
 
   /// Current uptime since last connection.
   Duration get uptime {
     if (_lastOnlineAt == null) return Duration.zero;
-    if (_detector.state == ConsoleConnectionState.offline) {
+    if (_detector != null &&
+        _detector.state == ConsoleConnectionState.offline) {
       return _uptime;
     }
     return DateTime.now().difference(_lastOnlineAt!);
   }
 
   /// Whether the console is currently online.
-  bool get isOnline =>
-      _detector.state == ConsoleConnectionState.connected ||
-      _detector.state == ConsoleConnectionState.detected ||
-      _detector.state == ConsoleConnectionState.reconnected;
+  bool get isOnline {
+    if (_detector == null) return false;
+    return _detector.state == ConsoleConnectionState.connected ||
+        _detector.state == ConsoleConnectionState.detected ||
+        _detector.state == ConsoleConnectionState.reconnected;
+  }
 
   /// Start monitoring.
   void start() {
-    _stateSub = _detector.stateStream.listen(_onStateChange);
+    if (_detector != null) {
+      _stateSub = _detector.stateStream.listen(_onStateChange);
+    }
+    // fromStream monitors use the stream directly via events getter.
   }
 
   void _onStateChange(ConsoleConnectionState state) {
@@ -50,8 +71,8 @@ class ConsoleHealthMonitor {
         _eventController.add(ConsoleHealthEvent(
           type: ConsoleHealthEventType.online,
           timestamp: DateTime.now(),
-          consoleName: _detector.lastDetection?.profile.displayName,
-          consoleIp: _detector.lastDetection?.node.ip,
+          consoleName: _detector?.lastDetection?.profile.displayName,
+          consoleIp: _detector?.lastDetection?.node.ip,
         ));
 
       case ConsoleConnectionState.offline:
@@ -62,8 +83,8 @@ class ConsoleHealthMonitor {
         _eventController.add(ConsoleHealthEvent(
           type: ConsoleHealthEventType.offline,
           timestamp: DateTime.now(),
-          consoleName: _detector.lastDetection?.profile.displayName,
-          consoleIp: _detector.lastDetection?.node.ip,
+          consoleName: _detector?.lastDetection?.profile.displayName,
+          consoleIp: _detector?.lastDetection?.node.ip,
           uptimeBeforeOffline: _uptime,
         ));
 
@@ -75,8 +96,8 @@ class ConsoleHealthMonitor {
         _eventController.add(ConsoleHealthEvent(
           type: ConsoleHealthEventType.reconnected,
           timestamp: DateTime.now(),
-          consoleName: _detector.lastDetection?.profile.displayName,
-          consoleIp: _detector.lastDetection?.node.ip,
+          consoleName: _detector?.lastDetection?.profile.displayName,
+          consoleIp: _detector?.lastDetection?.node.ip,
           downtimeDuration: downtime,
         ));
 
@@ -89,6 +110,7 @@ class ConsoleHealthMonitor {
   /// Stop monitoring.
   void stop() {
     _stateSub?.cancel();
+    _externalSub?.cancel();
   }
 
   void dispose() {

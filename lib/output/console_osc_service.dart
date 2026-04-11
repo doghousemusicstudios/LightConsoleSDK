@@ -139,13 +139,30 @@ class ConsoleOscService {
   }
 
   void _send(String address, List<dynamic> args, String actionLabel) {
+    // Check connection state BEFORE sending — a disconnected client
+    // silently returns from send(), which would log a false success.
+    if (!client.isConnected) {
+      _eventLog.add(TriggerEvent(
+        timestamp: DateTime.now(),
+        sourceId: '',
+        sourceLabel: actionLabel,
+        action: ConsoleTriggerAction.customOsc,
+        protocol: TriggerProtocol.osc,
+        resolvedAddress: address,
+        args: args,
+        success: false,
+        error: 'OSC client not connected',
+      ));
+      return;
+    }
+
     try {
       client.send(address, args);
       _eventLog.add(TriggerEvent(
         timestamp: DateTime.now(),
         sourceId: '',
         sourceLabel: actionLabel,
-        action: ConsoleTriggerAction.fireCue,
+        action: ConsoleTriggerAction.customOsc,
         protocol: TriggerProtocol.osc,
         resolvedAddress: address,
         args: args,
@@ -156,7 +173,7 @@ class ConsoleOscService {
         timestamp: DateTime.now(),
         sourceId: '',
         sourceLabel: actionLabel,
-        action: ConsoleTriggerAction.fireCue,
+        action: ConsoleTriggerAction.customOsc,
         protocol: TriggerProtocol.osc,
         resolvedAddress: address,
         args: args,
