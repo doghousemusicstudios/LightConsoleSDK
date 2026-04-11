@@ -119,13 +119,28 @@ heartbeatResponsePrefix: null, // any response counts
 - **MA3 requires an active network session** for OSC to work. No session = no OSC processing.
 - MA3's Destination IP in OSC config must NOT be 127.0.0.1 — use the machine's LAN IP (e.g., 10.0.0.134)
 
+### ChamSys MagicQ — NOT YET VALIDATED (two promising paths)
+
+ChamSys reportedly has two heartbeat paths that don't require a hardware dongle for initial testing:
+
+1. **HTTP Web Server on port 8080** — MagicQ has a built-in web server (similar to MA3).
+   `GET http://<mq-ip>:8080` → HTTP 200 = alive. Needs confirmation on MagicQ PC.
+
+2. **OSC poke + feedback** — MagicQ responds more freely to OSC than MA3.
+   MagicQ has built-in `/feedback/pb+exec` that auto-transmits playback state changes.
+   Strategy: send a harmless OSC command, watch for any outbound OSC traffic.
+   The OSC path still needs "Unlocked Mode" (hardware dongle) on MagicQ PC.
+
+**Validation plan:** Install MagicQ PC, test HTTP on 8080 first (no dongle needed).
+If HTTP works, that's the heartbeat. If not, OSC poke needs the dongle.
+
 ### Updated Heartbeat Configuration
 
 | Console | Protocol | Port | Framing | Heartbeat Method | Confidence |
 |---------|----------|------|---------|-----------------|:----------:|
 | **ETC Eos** | TCP | 3037 | SLIP | **Push-based:** listen for `/eos/out/` stream. No query needed. | **High** |
 | **GrandMA3** | HTTP | 8080 | HTTP GET | **Web Remote ping:** `GET http://<ip>:8080` → HTTP 200 = alive. No OSC config needed. | **Validated** |
-| **ChamSys MQ** | UDP | user-set | Raw | Untested. Query `/ch/playback/1/level` — needs hardware dongle. | **Unknown** |
+| **ChamSys MQ** | HTTP + OSC | 8080 (HTTP) / user-set (OSC) | HTTP GET + UDP | **Two paths:** HTTP 200 on port 8080 (like MA3) + OSC poke with feedback (MQ responds more freely than MA3). Needs validation. | **Unvalidated** |
 | **Onyx** | TCP | 2323 | Telnet | **TCP connection state + QLActive polling.** Already implemented. | **High** |
 
 ---
