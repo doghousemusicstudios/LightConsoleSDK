@@ -110,6 +110,8 @@ heartbeatResponsePrefix: null, // any response counts
 - MA3 **receives and executes OSC commands** (fader moved on `/gma3/Page1/Fader201`)
 - MA3 **does NOT send any OSC responses** to any query — confirmed with 8 different address patterns
 - Port configuration: MA3's "Port" field is the port it **listens on** (not sends to). Conflicted with localhost when set to 8000 (MA3 bound `*:8000`). Changed to 9000 — works.
+- TCP tested on ports 9000, 8000, 9001 — all refused. MA3 onPC (Mac) does not expose a TCP OSC listener.
+  (The sstaub/gma3 Arduino library documents TCP port 9000, but this may only work on dedicated MA3 console hardware.)
 - **Heartbeat strategy for MA3 without Companion Plugin:** Cannot do query/response heartbeat. Options:
   1. Use DMX sniffing (sACN input) to detect if MA3 is still outputting
   2. Install Companion Plugin which adds explicit `/showup/heartbeat` response
