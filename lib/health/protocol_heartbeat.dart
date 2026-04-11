@@ -169,10 +169,16 @@ class ProtocolHeartbeat {
   }
 
   /// Eos: check if push stream data was received recently.
+  ///
+  /// Does NOT treat "connected but no stream" as alive. If the
+  /// TCP connection is up but Eos hasn't pushed any /eos/out/ data,
+  /// the console may have OSC TX disabled or misconfigured.
+  /// We require at least one push packet before reporting online.
   bool _probePushStream() {
     if (_lastPushReceived == null) {
-      // Haven't received anything yet — check if OSC client is connected.
-      return _oscClient?.isConnected ?? false;
+      // Never received a push packet. Even if TCP is connected,
+      // we cannot confirm the console is alive and properly configured.
+      return false;
     }
     final elapsed = DateTime.now().difference(_lastPushReceived!);
     // Eos pushes at ~10Hz. If no data for 2x the heartbeat interval,
