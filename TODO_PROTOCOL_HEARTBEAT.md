@@ -93,6 +93,41 @@ heartbeatResponsePrefix: null, // any response counts
 
 ---
 
+## Validated Results (2026-04-11)
+
+### ETC Eos Nomad — VALIDATED on localhost
+
+- **Port 3037** (Third-Party OSC) with **TCP SLIP** encoding works perfectly
+- Port 3032 (native) does not respond to third-party connections
+- UDP does not work on any port — Eos requires TCP for third-party OSC
+- **Eos pushes `/eos/out/user` at ~10Hz as soon as a TCP client connects** — no query needed
+- Heartbeat strategy: connect TCP SLIP on 3037, listen for any `/eos/out/` message. If stream stops → offline.
+- This is a **push-based heartbeat** — superior to query/response because there's no round-trip latency to manage
+- Eos Show Control > OSC TX must be enabled
+
+### GrandMA3 onPC — VALIDATED on localhost
+
+- MA3 **receives and executes OSC commands** (fader moved on `/gma3/Page1/Fader201`)
+- MA3 **does NOT send any OSC responses** to any query — confirmed with 8 different address patterns
+- Port configuration: MA3's "Port" field is the port it **listens on** (not sends to). Conflicted with localhost when set to 8000 (MA3 bound `*:8000`). Changed to 9000 — works.
+- **Heartbeat strategy for MA3 without Companion Plugin:** Cannot do query/response heartbeat. Options:
+  1. Use DMX sniffing (sACN input) to detect if MA3 is still outputting
+  2. Install Companion Plugin which adds explicit `/showup/heartbeat` response
+  3. Treat UDP socket connectivity as a best-effort signal (not reliable)
+- **MA3 requires an active network session** for OSC to work. No session = no OSC processing.
+- MA3's Destination IP in OSC config must NOT be 127.0.0.1 — use the machine's LAN IP (e.g., 10.0.0.134)
+
+### Updated Heartbeat Configuration
+
+| Console | Protocol | Port | Framing | Heartbeat Method | Confidence |
+|---------|----------|------|---------|-----------------|:----------:|
+| **ETC Eos** | TCP | 3037 | SLIP | **Push-based:** listen for `/eos/out/` stream. No query needed. | **High** |
+| **GrandMA3** | UDP | user-set | Raw | **No native heartbeat.** Companion Plugin or DMX sniffing required. | **Low** |
+| **ChamSys MQ** | UDP | user-set | Raw | Untested. Query `/ch/playback/1/level` — needs hardware dongle. | **Unknown** |
+| **Onyx** | TCP | 2323 | Telnet | **TCP connection state + QLActive polling.** Already implemented. | **High** |
+
+---
+
 ## Single-Machine Validation Plan
 
 Most of this can be validated on a single Mac without buying hardware or setting up a second machine.
