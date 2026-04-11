@@ -212,12 +212,26 @@ class ProtocolHeartbeat {
     }
   }
 
-  /// Onyx: Telnet connection state + QLActive command.
+  /// Onyx: Telnet connection state is the primary signal.
+  ///
+  /// TCP is connection-oriented — if the socket is connected,
+  /// the console process is alive. Unlike UDP (where "connected"
+  /// just means our local socket is open), a TCP socket's connected
+  /// state means the remote accepted our handshake.
+  ///
+  /// We also send QLActive as a keep-alive to detect stale connections
+  /// where the remote died without sending FIN, but the return value
+  /// only confirms the write buffer accepted the data — it does not
+  /// confirm the console processed it. TCP keepalive on the socket
+  /// handles the stale-connection case at the OS level.
   bool _probeTelnet() {
     if (_telnetClient == null) return false;
     if (!_telnetClient.isConnected) return false;
-    // Send QLActive — lightweight, no side effects.
-    return _telnetClient.requestActiveCuelists();
+    // Send QLActive as keep-alive. If the socket is dead, this will
+    // trigger onDone/onError on the next event loop, updating
+    // isConnected to false for the next probe cycle.
+    _telnetClient.requestActiveCuelists();
+    return true; // TCP connected = alive. Dead socket detected next cycle.
   }
 
   void dispose() {

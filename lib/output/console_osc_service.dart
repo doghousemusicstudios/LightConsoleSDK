@@ -28,9 +28,24 @@ class ConsoleOscService {
   bool get isConnected => client.isConnected;
 
   /// Connect to the console's OSC server.
-  Future<void> connect(String ip, {int? port}) async {
+  ///
+  /// Automatically selects the correct transport (UDP or TCP SLIP)
+  /// based on the console profile. ETC Eos requires TCP SLIP on
+  /// port 3037; all others use UDP.
+  Future<void> connect(String ip, {int? port, OscTransport? transport}) async {
     final oscPort = port ?? _profile.oscPort ?? 8000;
-    await client.connect(ip, oscPort);
+    final oscTransport = transport ?? _transportForProfile();
+    await client.connect(ip, oscPort, transport: oscTransport);
+  }
+
+  /// Determine the correct OSC transport for this console profile.
+  /// Eos uses TCP SLIP (validated: UDP does not work for Eos 3rd-party).
+  OscTransport _transportForProfile() {
+    // Eos heartbeat is tcpPushStream on 3037 — same port, same transport.
+    if (_profile.heartbeat.strategy == HeartbeatStrategy.tcpPushStream) {
+      return OscTransport.tcpSlip;
+    }
+    return OscTransport.udp;
   }
 
   /// Fire a cue on the console.
