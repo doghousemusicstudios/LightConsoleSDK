@@ -64,6 +64,9 @@ class TelnetClient {
       _isConnecting = false;
       _reconnectDelay = const Duration(seconds: 1);
 
+      // Enable TCP keepalive so dead connections are detected by the OS.
+      _socket!.setOption(SocketOption.tcpNoDelay, true);
+
       _socket!.listen(
         _onData,
         onError: (_) => _onDisconnect(),

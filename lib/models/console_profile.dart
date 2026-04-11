@@ -254,8 +254,11 @@ class ConsoleConnection {
   /// Console IP address.
   final String ip;
 
-  /// OSC port (if using OSC).
+  /// OSC port (if using OSC protocol).
   final int? oscPort;
+
+  /// Telnet port (if using Telnet protocol). Default 2323 for Onyx.
+  final int? telnetPort;
 
   /// MIDI device ID string (if using MIDI).
   final String? midiDeviceId;
@@ -266,13 +269,28 @@ class ConsoleConnection {
   const ConsoleConnection({
     required this.ip,
     this.oscPort,
+    this.telnetPort,
     this.midiDeviceId,
     required this.protocol,
   });
 
+  /// The port for the active protocol.
+  int? get activePort {
+    switch (protocol) {
+      case ConsoleProtocol.osc:
+        return oscPort;
+      case ConsoleProtocol.telnet:
+        return telnetPort ?? 2323;
+      case ConsoleProtocol.midi:
+      case ConsoleProtocol.msc:
+        return null;
+    }
+  }
+
   Map<String, dynamic> toJson() => {
         'ip': ip,
         if (oscPort != null) 'oscPort': oscPort,
+        if (telnetPort != null) 'telnetPort': telnetPort,
         if (midiDeviceId != null) 'midiDeviceId': midiDeviceId,
         'protocol': protocol.name,
       };
@@ -281,6 +299,7 @@ class ConsoleConnection {
       ConsoleConnection(
         ip: json['ip'] as String,
         oscPort: json['oscPort'] as int?,
+        telnetPort: json['telnetPort'] as int?,
         midiDeviceId: json['midiDeviceId'] as String?,
         protocol: ConsoleProtocol.values.firstWhere(
           (p) => p.name == json['protocol'],
