@@ -93,15 +93,159 @@ heartbeatResponsePrefix: null, // any response counts
 
 ---
 
-## Validation Steps
+## Single-Machine Validation Plan
 
-1. **Eos Nomad (free):** Install on Mac, enable OSC, connect SDK's OscClient, verify `/eos/get/version` returns a response. Kill Nomad → verify heartbeat detects offline within `missedThreshold * interval` seconds.
+Most of this can be validated on a single Mac without buying hardware or setting up a second machine.
 
-2. **MA3 onPC (free):** Install on Windows VM or Mac (if available), enable OSC, test empty command and Companion Plugin heartbeat. Determine which approach is reliable.
+### What runs on the same Mac as ShowUp
 
-3. **MagicQ PC (free with limitations):** Install, enable OSC (requires Unlocked Mode with hardware), test playback level query. If no hardware available, defer MQ heartbeat to when we have a dongle.
+| Console Software | macOS? | Cost | Network Setup | Heartbeat Testable? |
+|-----------------|:------:|------|---------------|:-------------------:|
+| **ETC Eos Nomad** | Yes | Free | `127.0.0.1:3032` (TCP) | **Yes — best target** |
+| **MA3 onPC** | Yes | Free | Use LAN IP, not 127.0.0.1 (MA3 blocks localhost OSC port) | **Yes — with workaround** |
+| **MagicQ PC** | Yes | Free download, but OSC needs ChamSys hardware dongle (~$100) | `127.0.0.1:user-port` | **Only with dongle** |
+| **Onyx** | No (Windows only) | Free | Needs Windows VM (Parallels/UTM) + bridged network | **Only with VM** |
 
-4. **Loopback test (no console):** Write a test that starts a mock OSC responder on localhost, sends heartbeat, verifies online/offline transitions. This can validate the pipeline without real console software.
+### Phase A: Eos on localhost (30 min, zero cost)
+
+This is the fastest path to a validated heartbeat and should be done first.
+
+```
+1. Download ETC Eos Nomad from etcconnect.com (free, macOS)
+2. Launch Eos, create new show
+3. Enable OSC: Setup > Show Control > OSC
+   - OSC RX: enabled
+   - OSC TX: enabled
+   - Third-Party OSC port: 3037 (or use native 3032)
+4. In the SDK test:
+   a. Connect OscClient to 127.0.0.1:3032 (TCP)
+   b. Send /eos/get/version
+   c. Listen for /eos/out/get/version response
+   d. Verify response arrives within 1 second
+5. Test offline detection:
+   a. Quit Eos Nomad
+   b. Verify heartbeat detects offline within missedThreshold * interval
+   c. Relaunch Eos
+   d. Verify heartbeat detects reconnected
+6. Record: exact response format, latency, any quirks
+```
+
+**What this proves:** Full query/response heartbeat cycle for the richest OSC console. If this works, the heartbeat pipeline is validated end-to-end.
+
+### Phase B: MA3 on localhost (45 min, zero cost)
+
+```
+1. Download MA3 onPC from malighting.com (free, macOS)
+2. Launch MA3 onPC, create new session
+3. Enable OSC: Setup > Network > Protocols
+   - Add OSC "In & Out" configuration
+   - Set destination IP to the Mac's LAN IP (e.g., 192.168.1.x)
+   - Do NOT use 127.0.0.1 (MA3 blocks the port on localhost)
+   - Note the TX/RX ports
+4. In the SDK test:
+   a. Connect OscClient to the Mac's LAN IP on the configured port
+   b. Send /gma3/cmd "" (empty command, no-op)
+   c. Listen for any /gma3/ response
+   d. Check: does MA3 respond to empty commands?
+5. If no response to empty command:
+   a. Try: /gma3/Page1/Fader201 (fader query)
+   b. Try: install Companion Plugin, send /showup/heartbeat
+   c. Determine which approach gets a response
+6. Test offline detection:
+   a. Quit MA3 or disable the OSC session
+   b. Verify heartbeat detects offline
+7. Record: which query works, response format, latency
+```
+
+**What this proves:** Whether MA3 responds to any OSC query at all, and which address to use for heartbeat. This is the biggest unknown — MA3's OSC feedback is sequence-level, not query/response, so the heartbeat address might need to be Companion Plugin-specific.
+
+### Phase C: MagicQ with dongle (30 min, ~$100 if no dongle)
+
+**Skip this phase if no ChamSys hardware is available.** MQ heartbeat can be deferred.
+
+```
+1. Install MagicQ PC (free, macOS)
+2. Connect ChamSys dongle (Mini Connect, Compact Connect, etc.)
+3. Enable OSC: Setup > View Settings > Network > OSC TX/RX ports
+4. Send /ch/playback/1/level, listen for response
+5. Test offline detection
+```
+
+### Phase D: Onyx on Windows VM (1 hour, zero cost if VM available)
+
+**Skip this phase initially.** Onyx Telnet heartbeat already works via TCP connection state. This is for validating the full QLActive polling path.
+
+```
+1. Install Windows VM (Parallels, UTM, or real Windows machine)
+2. Install Onyx (free, 1 universe)
+3. Install Onyx Manager, enable Telnet Server
+4. Bridge VM network to Mac's LAN
+5. Connect TelnetClient from Mac to VM's IP:2323
+6. Send QLActive, verify response
+7. Test offline: stop Onyx Manager, verify TCP disconnect detected
+```
+
+### Recommended Order
+
+```
+Phase A (Eos)  →  takes 30 min, validates the full pipeline
+Phase B (MA3)  →  takes 45 min, resolves the biggest unknown
+Phase C (MQ)   →  only if you have a dongle
+Phase D (Onyx) →  only if you need to validate Telnet beyond connection state
+```
+
+After Phase A alone, the heartbeat can ship for Eos with confidence. MA3 needs Phase B to determine the right query address. MQ and Onyx can defer.
+
+---
+
+## Loopback Integration Test (no console software needed)
+
+Even before installing any console software, we can validate the heartbeat pipeline with a mock OSC responder on localhost:
+
+```dart
+test('heartbeat detects online/offline via OSC query/response', () async {
+  // Start a mock OSC "console" on localhost that responds to queries
+  final mockConsole = await RawDatagramSocket.bind('127.0.0.1', 0);
+  final mockPort = mockConsole.port;
+
+  // Configure mock to respond to any OSC query with a version response
+  mockConsole.listen((event) {
+    if (event == RawSocketEvent.read) {
+      final datagram = mockConsole.receive();
+      // Echo back a response
+      final response = OscClient.encodeOscMessage(
+        OscMessage(address: '/eos/out/get/version', args: ['3.4.2']),
+      );
+      mockConsole.send(response, datagram!.address, datagram.port);
+    }
+  });
+
+  // Connect the SDK's heartbeat to the mock
+  final oscClient = OscClient();
+  await oscClient.connect('127.0.0.1', mockPort);
+  final heartbeat = ProtocolHeartbeat(
+    oscClient: oscClient,
+    protocol: ConsoleProtocol.osc,
+    interval: Duration(milliseconds: 200),
+    missedThreshold: 2,
+  );
+
+  // Verify online detection
+  heartbeat.start();
+  await Future.delayed(Duration(milliseconds: 500));
+  expect(heartbeat.isOnline, isTrue);
+
+  // Kill the mock → verify offline detection
+  mockConsole.close();
+  await Future.delayed(Duration(seconds: 2));
+  expect(heartbeat.isOnline, isFalse);
+
+  heartbeat.dispose();
+  oscClient.dispose();
+});
+```
+
+This test validates the full pipeline (send query → receive response → track state → detect timeout) without any console software installed. It can run in CI.
 
 ---
 
