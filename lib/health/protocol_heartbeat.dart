@@ -1,32 +1,33 @@
 import 'dart:async';
+import 'dart:io';
 
 import '../models/console_profile.dart';
 import '../output/osc_client.dart';
 import '../output/telnet_client.dart';
 import 'console_health_monitor.dart';
 
-/// Monitors console health by pinging the actual control-path protocol
-/// (OSC, Telnet) rather than relying on ArtPoll discovery broadcasts.
+/// Monitors console health using validated protocol-level strategies.
 ///
-/// This solves the problem where a console answers OSC/Telnet but not
-/// ArtPoll (broadcast-filtered networks, manual setup without discovery,
-/// or consoles that only speak sACN/Telnet).
+/// Each console family uses a different approach, discovered via live
+/// testing against real console software (2026-04-11):
 ///
-/// The heartbeat sends a non-destructive query at [interval] and checks
-/// for a response within [timeout]. If [missedThreshold] consecutive
-/// pings fail, the console is considered offline.
+/// - **Eos:** TCP SLIP push stream on 3037 — listen for /eos/out/ data
+/// - **MA3:** HTTP GET on port 8080 — check for HTTP 200
+/// - **MagicQ:** TCP connect on port 4914 — connection accepted = alive
+/// - **Onyx:** Telnet QLActive on port 2323 — TCP + command response
+///
+/// The heartbeat emits [ConsoleHealthEvent]s compatible with
+/// [ConsoleHealthMonitor.fromStream()].
 class ProtocolHeartbeat {
+  final HeartbeatConfig _config;
   final OscClient? _oscClient;
   final TelnetClient? _telnetClient;
-  final ConsoleProtocol _protocol;
+  final String _consoleIp;
 
-  /// How often to send a heartbeat ping.
+  /// How often to check (derived from FailoverConfig.timeoutSeconds).
   final Duration interval;
 
-  /// How long to wait for a response before counting a miss.
-  final Duration timeout;
-
-  /// Number of consecutive missed heartbeats before declaring offline.
+  /// Number of consecutive failures before declaring offline.
   final int missedThreshold;
 
   Timer? _timer;
@@ -34,43 +35,97 @@ class ProtocolHeartbeat {
   bool _isOnline = false;
   bool _wasOnline = false;
 
+  /// For tcpPushStream: subscription to the OSC incoming stream.
+  StreamSubscription<OscMessage>? _pushStreamSub;
+  DateTime? _lastPushReceived;
+
+  /// For tcpConnect: dedicated socket for heartbeat (not the control socket).
+  Socket? _heartbeatSocket;
+
   final StreamController<ConsoleHealthEvent> _eventController =
       StreamController<ConsoleHealthEvent>.broadcast();
 
   ProtocolHeartbeat({
+    required HeartbeatConfig config,
+    required String consoleIp,
     OscClient? oscClient,
     TelnetClient? telnetClient,
-    required ConsoleProtocol protocol,
     this.interval = const Duration(seconds: 5),
-    this.timeout = const Duration(seconds: 3),
     this.missedThreshold = 3,
-  })  : _oscClient = oscClient,
-        _telnetClient = telnetClient,
-        _protocol = protocol;
+  })  : _config = config,
+        _consoleIp = consoleIp,
+        _oscClient = oscClient,
+        _telnetClient = telnetClient;
 
-  /// Stream of health events driven by protocol-level heartbeat.
-  /// Can be fed directly to ConsoleHealthMonitor.fromStream().
-  Stream<ConsoleHealthEvent> get events => _eventController.stream;
+  /// Create from a FailoverConfig, wiring timeoutSeconds to interval/threshold.
+  factory ProtocolHeartbeat.fromFailoverConfig({
+    required HeartbeatConfig heartbeatConfig,
+    required String consoleIp,
+    required int timeoutSeconds,
+    OscClient? oscClient,
+    TelnetClient? telnetClient,
+  }) {
+    // Distribute timeout across interval * threshold.
+    // E.g., 15s timeout → 5s interval, 3 misses.
+    final intervalSec = (timeoutSeconds / 3).ceil().clamp(1, 30);
+    final threshold = (timeoutSeconds / intervalSec).ceil().clamp(2, 10);
 
-  /// Whether the console is currently responding to heartbeats.
-  bool get isOnline => _isOnline;
-
-  /// Start the heartbeat timer.
-  void start() {
-    _timer?.cancel();
-    _timer = Timer.periodic(interval, (_) => _ping());
+    return ProtocolHeartbeat(
+      config: heartbeatConfig,
+      consoleIp: consoleIp,
+      oscClient: oscClient,
+      telnetClient: telnetClient,
+      interval: Duration(seconds: intervalSec),
+      missedThreshold: threshold,
+    );
   }
 
-  /// Stop the heartbeat timer.
+  /// Stream of health events for [ConsoleHealthMonitor.fromStream()].
+  Stream<ConsoleHealthEvent> get events => _eventController.stream;
+
+  /// Whether the console is currently responding.
+  bool get isOnline => _isOnline;
+
+  /// The active heartbeat strategy.
+  HeartbeatStrategy get strategy => _config.strategy;
+
+  /// Start the heartbeat.
+  void start() {
+    if (_config.strategy == HeartbeatStrategy.none) return;
+
+    // For push-based streams, set up the listener immediately.
+    if (_config.strategy == HeartbeatStrategy.tcpPushStream &&
+        _oscClient != null) {
+      _startPushStreamMonitor();
+    }
+
+    _timer?.cancel();
+    _timer = Timer.periodic(interval, (_) => _check());
+  }
+
+  /// Stop the heartbeat.
   void stop() {
     _timer?.cancel();
     _timer = null;
+    _pushStreamSub?.cancel();
+    _pushStreamSub = null;
+    _heartbeatSocket?.destroy();
+    _heartbeatSocket = null;
   }
 
-  Future<void> _ping() async {
-    final responded = await _sendPing();
+  void _startPushStreamMonitor() {
+    final prefix = _config.streamPrefix;
+    _pushStreamSub = _oscClient!.incoming
+        .where((msg) => prefix == null || msg.address.startsWith(prefix))
+        .listen((_) {
+      _lastPushReceived = DateTime.now();
+    });
+  }
 
-    if (responded) {
+  Future<void> _check() async {
+    final alive = await _probe();
+
+    if (alive) {
       _missedCount = 0;
       if (!_isOnline) {
         _isOnline = true;
@@ -94,53 +149,74 @@ class ProtocolHeartbeat {
     }
   }
 
-  /// Send a non-destructive ping and return whether a response was received.
-  Future<bool> _sendPing() async {
+  Future<bool> _probe() async {
     try {
-      switch (_protocol) {
-        case ConsoleProtocol.osc:
-          return await _pingOsc();
-        case ConsoleProtocol.telnet:
-          return _pingTelnet();
-        case ConsoleProtocol.midi:
-        case ConsoleProtocol.msc:
-          // MIDI has no query mechanism — assume online if device is open.
-          return true;
+      switch (_config.strategy) {
+        case HeartbeatStrategy.tcpPushStream:
+          return _probePushStream();
+        case HeartbeatStrategy.httpGet:
+          return await _probeHttp();
+        case HeartbeatStrategy.tcpConnect:
+          return await _probeTcpConnect();
+        case HeartbeatStrategy.telnetPoll:
+          return _probeTelnet();
+        case HeartbeatStrategy.none:
+          return false;
       }
     } catch (_) {
       return false;
     }
   }
 
-  Future<bool> _pingOsc() async {
-    if (_oscClient == null || !_oscClient.isConnected) return false;
-
-    // Send a non-destructive query and wait for any response.
-    // Different consoles have different ping addresses, but sending
-    // an empty/query message that the console will respond to.
-    // The response listener is already running via OscClient.subscribe().
-    // We just need to check if the socket is alive.
-    //
-    // For a true ping, we'd send a version query:
-    //   MA3: /gma3/cmd "" (empty command, no-op)
-    //   Eos: /eos/get/version
-    //   MQ: /ch/playback/1/level (returns current level)
-    // But all of those require console-specific knowledge.
-    //
-    // The simplest universal check: is the UDP socket still valid?
-    // UDP is connectionless, so this only tells us if OUR side is up.
-    // A real ping requires sending + receiving, which needs the console
-    // profile to know what to send.
-    //
-    // For now: return true if connected. The protocol-specific ping
-    // can be added when console profiles include a heartbeat address.
-    return _oscClient.isConnected;
+  /// Eos: check if push stream data was received recently.
+  bool _probePushStream() {
+    if (_lastPushReceived == null) {
+      // Haven't received anything yet — check if OSC client is connected.
+      return _oscClient?.isConnected ?? false;
+    }
+    final elapsed = DateTime.now().difference(_lastPushReceived!);
+    // Eos pushes at ~10Hz. If no data for 2x the heartbeat interval,
+    // consider it dead.
+    return elapsed < interval * 2;
   }
 
-  bool _pingTelnet() {
-    if (_telnetClient == null || !_telnetClient.isConnected) return false;
-    // Telnet is TCP — connection state is meaningful.
-    // Send QLActive as a lightweight ping (returns quickly, no side effects).
+  /// MA3: HTTP GET to the web remote.
+  Future<bool> _probeHttp() async {
+    final port = _config.port ?? 8080;
+    final path = _config.httpPath;
+    try {
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 3);
+      final request = await client.getUrl(
+          Uri.parse('http://$_consoleIp:$port$path'));
+      final response = await request.close();
+      await response.drain<void>();
+      client.close(force: true);
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// MQ: TCP connect to heartbeat port — connection accepted = alive.
+  Future<bool> _probeTcpConnect() async {
+    final port = _config.port;
+    if (port == null) return false;
+    try {
+      final socket = await Socket.connect(_consoleIp, port,
+          timeout: const Duration(seconds: 3));
+      await socket.close();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Onyx: Telnet connection state + QLActive command.
+  bool _probeTelnet() {
+    if (_telnetClient == null) return false;
+    if (!_telnetClient.isConnected) return false;
+    // Send QLActive — lightweight, no side effects.
     return _telnetClient.requestActiveCuelists();
   }
 

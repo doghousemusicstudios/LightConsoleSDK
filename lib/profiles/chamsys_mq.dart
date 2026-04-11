@@ -35,4 +35,8 @@ const chamsysMqProfile = ConsoleProfile(
     estaCodes: [0x4348], // 'CH'
   ),
   defaultSacnPriority: 50,
+  heartbeat: HeartbeatConfig(
+    strategy: HeartbeatStrategy.tcpConnect,
+    port: 4914,
+  ),
 );

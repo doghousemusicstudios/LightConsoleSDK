@@ -2,15 +2,17 @@ import '../models/console_profile.dart';
 
 /// ETC Eos / Ion / Element / ColorSource console profile.
 ///
-/// ETC consoles have a well-documented, address-based OSC API where each
-/// command has a dedicated address path. This makes Eos one of the easiest
-/// consoles to integrate with via OSC.
+/// Validated on ETC Eos Nomad (localhost, 2026-04-11):
+/// - TCP SLIP on port 3037 (third-party OSC) — full bidirectional
+/// - Eos pushes /eos/out/user at ~10Hz on TCP connect
+/// - Port 3032 (native) does not respond to third-party connections
+/// - UDP does not work for Eos third-party OSC
 const etcEosProfile = ConsoleProfile(
   id: 'eos',
   displayName: 'ETC Eos Family',
   manufacturer: 'ETC',
   preferredProtocol: ConsoleProtocol.osc,
-  oscPort: 3032,
+  oscPort: 3037, // Third-party OSC (TCP SLIP). Native 3032 is for ETC apps.
   oscPatterns: ConsoleOscPatterns(
     fireCue: '/eos/cue/{cueList}/{cue}/fire',
     setFader: '/eos/fader/1/{fader}',
@@ -33,4 +35,13 @@ const etcEosProfile = ConsoleProfile(
     estaCodes: [0x4554], // 'ET' in ASCII
   ),
   defaultSacnPriority: 50,
+  heartbeat: HeartbeatConfig(
+    strategy: HeartbeatStrategy.tcpPushStream,
+    port: 3037,
+    streamPrefix: '/eos/out/',
+  ),
 );
+
+/// Eos requires TCP SLIP transport, not UDP.
+/// Use OscTransport.tcpSlip when connecting.
+const eosOscTransport = 'tcpSlip';

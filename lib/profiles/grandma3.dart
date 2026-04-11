@@ -34,4 +34,9 @@ const grandMa3Profile = ConsoleProfile(
     estaCodes: [0x4D41], // 'MA' in ASCII
   ),
   defaultSacnPriority: 50,
+  heartbeat: HeartbeatConfig(
+    strategy: HeartbeatStrategy.httpGet,
+    port: 8080,
+    httpPath: '/',
+  ),
 );

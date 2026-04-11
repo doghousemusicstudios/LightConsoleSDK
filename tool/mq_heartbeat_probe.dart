@@ -2,7 +2,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import '../lib/output/osc_client.dart';
 
 /// Probe ChamSys MagicQ PC for heartbeat options:
 /// 1. HTTP on port 8080 (like MA3)

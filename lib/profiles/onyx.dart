@@ -44,6 +44,10 @@ const onyxProfile = ConsoleProfile(
     estaCodes: [0x4F42], // 'OB'
   ),
   defaultSacnPriority: 50,
+  heartbeat: HeartbeatConfig(
+    strategy: HeartbeatStrategy.telnetPoll,
+    port: 2323,
+  ),
 );
 
 /// Default Telnet port for Onyx Manager.

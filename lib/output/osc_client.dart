@@ -2,16 +2,34 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-/// A self-contained OSC 1.0 (Open Sound Control) client over UDP.
+/// Transport mode for the OSC client.
+enum OscTransport {
+  /// Standard UDP — connectionless, no delivery guarantee.
+  /// Used by MA3 and ChamSys.
+  udp,
+
+  /// TCP with SLIP framing (RFC 1055).
+  /// Used by ETC Eos on port 3037 (third-party OSC).
+  /// SLIP: packets delimited by 0xC0 (END).
+  tcpSlip,
+}
+
+/// A self-contained OSC 1.0 (Open Sound Control) client.
 ///
+/// Supports both UDP (MA3, ChamSys) and TCP with SLIP framing (ETC Eos).
 /// Handles encoding and decoding of OSC messages with type tags
 /// for int32 (i), float32 (f), string (s), and blob (b).
 /// All values are 4-byte aligned per the OSC spec.
 class OscClient {
-  RawDatagramSocket? _socket;
+  RawDatagramSocket? _udpSocket;
+  Socket? _tcpSocket;
   String? _ip;
   int _port = 0;
   bool _isConnected = false;
+  OscTransport _transport = OscTransport.udp;
+
+  /// Buffer for assembling SLIP-framed TCP data.
+  final List<int> _slipBuffer = [];
 
   final StreamController<OscMessage> _incomingController =
       StreamController<OscMessage>.broadcast();
@@ -19,19 +37,35 @@ class OscClient {
   bool get isConnected => _isConnected;
   String? get ip => _ip;
   int get port => _port;
+  OscTransport get transport => _transport;
 
-  /// Stream of incoming OSC messages.
+  /// Stream of incoming OSC messages (from either UDP or TCP).
   Stream<OscMessage> get incoming => _incomingController.stream;
 
   /// Connect to a target OSC server.
-  Future<void> connect(String ip, int port) async {
+  ///
+  /// [transport] — UDP (default, for MA3/MQ) or TCP SLIP (for Eos 3037).
+  Future<void> connect(String ip, int port,
+      {OscTransport transport = OscTransport.udp}) async {
     _ip = ip;
     _port = port;
+    _transport = transport;
 
-    _socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
-    _socket!.listen((event) {
+    switch (transport) {
+      case OscTransport.udp:
+        await _connectUdp(ip, port);
+      case OscTransport.tcpSlip:
+        await _connectTcpSlip(ip, port);
+    }
+
+    _isConnected = true;
+  }
+
+  Future<void> _connectUdp(String ip, int port) async {
+    _udpSocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
+    _udpSocket!.listen((event) {
       if (event == RawSocketEvent.read) {
-        final datagram = _socket!.receive();
+        final datagram = _udpSocket!.receive();
         if (datagram != null) {
           final msg = decodeOscMessage(datagram.data);
           if (msg != null) {
@@ -40,16 +74,97 @@ class OscClient {
         }
       }
     });
-
-    _isConnected = true;
   }
 
-  /// Send an OSC message.
+  Future<void> _connectTcpSlip(String ip, int port) async {
+    _tcpSocket = await Socket.connect(ip, port,
+        timeout: const Duration(seconds: 5));
+    _slipBuffer.clear();
+
+    _tcpSocket!.listen(
+      (data) => _onSlipData(data),
+      onError: (_) => _onTcpDisconnect(),
+      onDone: _onTcpDisconnect,
+    );
+  }
+
+  void _onTcpDisconnect() {
+    _isConnected = false;
+    _tcpSocket = null;
+  }
+
+  /// Process incoming TCP SLIP data.
+  /// SLIP: 0xC0 = END (packet delimiter), 0xDB = ESC,
+  /// 0xDB 0xDC = escaped END, 0xDB 0xDD = escaped ESC.
+  void _onSlipData(Uint8List data) {
+    for (final byte in data) {
+      if (byte == 0xC0) {
+        // END — process accumulated packet
+        if (_slipBuffer.isNotEmpty) {
+          final packet = _unslip(_slipBuffer);
+          _slipBuffer.clear();
+          final msg = decodeOscMessage(Uint8List.fromList(packet));
+          if (msg != null) {
+            _incomingController.add(msg);
+          }
+        }
+      } else {
+        _slipBuffer.add(byte);
+      }
+    }
+  }
+
+  /// Decode SLIP escape sequences.
+  List<int> _unslip(List<int> data) {
+    final result = <int>[];
+    for (var i = 0; i < data.length; i++) {
+      if (data[i] == 0xDB && i + 1 < data.length) {
+        if (data[i + 1] == 0xDC) {
+          result.add(0xC0);
+          i++;
+        } else if (data[i + 1] == 0xDD) {
+          result.add(0xDB);
+          i++;
+        } else {
+          result.add(data[i]);
+        }
+      } else {
+        result.add(data[i]);
+      }
+    }
+    return result;
+  }
+
+  /// SLIP-encode a packet for TCP transmission.
+  Uint8List _slipEncode(Uint8List data) {
+    final buf = <int>[0xC0]; // start with END
+    for (final b in data) {
+      if (b == 0xC0) {
+        buf.addAll([0xDB, 0xDC]);
+      } else if (b == 0xDB) {
+        buf.addAll([0xDB, 0xDD]);
+      } else {
+        buf.add(b);
+      }
+    }
+    buf.add(0xC0); // end with END
+    return Uint8List.fromList(buf);
+  }
+
+  /// Send an OSC message via the active transport.
   void send(String address, [List<dynamic>? args]) {
-    if (!_isConnected || _socket == null) return;
+    if (!_isConnected) return;
     final msg = OscMessage(address: address, args: args ?? []);
     final encoded = encodeOscMessage(msg);
-    _socket!.send(encoded, InternetAddress(_ip!), _port);
+
+    switch (_transport) {
+      case OscTransport.udp:
+        if (_udpSocket == null) return;
+        _udpSocket!.send(encoded, InternetAddress(_ip!), _port);
+      case OscTransport.tcpSlip:
+        if (_tcpSocket == null) return;
+        _tcpSocket!.add(_slipEncode(encoded));
+    }
   }
 
   /// Subscribe to incoming messages matching an address prefix.
@@ -63,9 +178,12 @@ class OscClient {
 
   /// Disconnect from the target.
   void disconnect() {
-    _socket?.close();
-    _socket = null;
+    _udpSocket?.close();
+    _udpSocket = null;
+    _tcpSocket?.destroy();
+    _tcpSocket = null;
     _isConnected = false;
+    _slipBuffer.clear();
   }
 
   void dispose() {
@@ -161,7 +279,6 @@ class OscClient {
   static void _writeOscString(BytesBuilder buffer, String s) {
     final bytes = s.codeUnits;
     buffer.add(bytes);
-    // Null terminator + padding to 4-byte boundary
     final padded = _padTo4(bytes.length + 1);
     buffer.add(Uint8List(padded - bytes.length));
   }

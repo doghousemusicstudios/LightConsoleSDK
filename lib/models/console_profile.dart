@@ -33,6 +33,9 @@ class ConsoleProfile {
   /// Most consoles default to 100; ShowUp should typically be lower.
   final int defaultSacnPriority;
 
+  /// Heartbeat strategy for this console.
+  final HeartbeatConfig heartbeat;
+
   const ConsoleProfile({
     required this.id,
     required this.displayName,
@@ -43,6 +46,7 @@ class ConsoleProfile {
     this.midiSettings,
     required this.detection,
     this.defaultSacnPriority = 50,
+    this.heartbeat = const HeartbeatConfig(),
   });
 
   Map<String, dynamic> toJson() => {
@@ -55,6 +59,7 @@ class ConsoleProfile {
         if (midiSettings != null) 'midiSettings': midiSettings!.toJson(),
         'detection': detection.toJson(),
         'defaultSacnPriority': defaultSacnPriority,
+        'heartbeat': heartbeat.toJson(),
       };
 
   factory ConsoleProfile.fromJson(Map<String, dynamic> json) => ConsoleProfile(
@@ -77,6 +82,9 @@ class ConsoleProfile {
         detection: ConsoleDetectionPatterns.fromJson(
             json['detection'] as Map<String, dynamic>),
         defaultSacnPriority: json['defaultSacnPriority'] as int? ?? 50,
+        heartbeat: json['heartbeat'] != null
+            ? HeartbeatConfig.fromJson(json['heartbeat'] as Map<String, dynamic>)
+            : const HeartbeatConfig(),
       );
 }
 
@@ -246,6 +254,73 @@ class ConsoleDetectionPatterns {
         oemCodes: (json['oemCodes'] as List?)?.cast<int>() ?? [],
         namePatterns: (json['namePatterns'] as List?)?.cast<String>() ?? [],
         estaCodes: (json['estaCodes'] as List?)?.cast<int>() ?? [],
+      );
+}
+
+/// How to determine if a console is alive.
+///
+/// Each console family uses a different strategy, validated via
+/// live testing against real console software.
+enum HeartbeatStrategy {
+  /// TCP push stream — console sends data continuously on connect.
+  /// Eos pushes /eos/out/user at ~10Hz on TCP SLIP port 3037.
+  tcpPushStream,
+
+  /// HTTP health check — console exposes a web server.
+  /// MA3 returns HTTP 200 on port 8080.
+  httpGet,
+
+  /// TCP connection state — connection accepted = alive.
+  /// MagicQ accepts TCP on port 4914. Onyx Telnet on 2323.
+  tcpConnect,
+
+  /// Telnet command/response — send a command, expect a response.
+  /// Onyx: QLActive via Telnet on 2323.
+  telnetPoll,
+
+  /// No validated heartbeat strategy for this console.
+  none,
+}
+
+/// Configuration for protocol-level heartbeat.
+class HeartbeatConfig {
+  /// Which strategy to use for this console.
+  final HeartbeatStrategy strategy;
+
+  /// Port to connect to for heartbeat.
+  /// May differ from the control port (e.g., Eos control=3037, heartbeat=3037).
+  final int? port;
+
+  /// HTTP path for httpGet strategy (default: "/").
+  final String httpPath;
+
+  /// For tcpPushStream: address prefix to watch for.
+  /// If null, any data on the TCP stream counts as alive.
+  final String? streamPrefix;
+
+  const HeartbeatConfig({
+    this.strategy = HeartbeatStrategy.none,
+    this.port,
+    this.httpPath = '/',
+    this.streamPrefix,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'strategy': strategy.name,
+        if (port != null) 'port': port,
+        'httpPath': httpPath,
+        if (streamPrefix != null) 'streamPrefix': streamPrefix,
+      };
+
+  factory HeartbeatConfig.fromJson(Map<String, dynamic> json) =>
+      HeartbeatConfig(
+        strategy: HeartbeatStrategy.values.firstWhere(
+          (s) => s.name == json['strategy'],
+          orElse: () => HeartbeatStrategy.none,
+        ),
+        port: json['port'] as int?,
+        httpPath: json['httpPath'] as String? ?? '/',
+        streamPrefix: json['streamPrefix'] as String?,
       );
 }
 
