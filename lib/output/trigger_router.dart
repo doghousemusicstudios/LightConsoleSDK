@@ -3,18 +3,20 @@ import 'dart:async';
 import '../models/console_trigger.dart';
 import 'console_osc_service.dart';
 import 'console_midi_service.dart';
+import 'telnet_client.dart';
 
 /// Routes ShowUp moment and macro activations to console commands.
 ///
 /// When a user taps a moment (e.g., "Chorus") or macro (e.g., "Big Finish")
 /// in the Perform screen, this router looks up the trigger binding and
-/// fires the appropriate console command via OSC or MIDI.
+/// fires the appropriate console command via OSC, MIDI, or Telnet.
 ///
 /// Integration point: ShowUp calls [onMomentActivated] and [onMacroActivated]
 /// from the Perform screen's moment/macro activation handlers.
 class TriggerRouter {
   final ConsoleOscService? _oscService;
   final ConsoleMidiService? _midiService;
+  final TelnetClient? _telnetClient;
   final Map<String, ConsoleTriggerBinding> _bindings;
   final bool _enabled;
 
@@ -24,9 +26,11 @@ class TriggerRouter {
   TriggerRouter({
     ConsoleOscService? oscService,
     ConsoleMidiService? midiService,
+    TelnetClient? telnetClient,
     Map<String, ConsoleTriggerBinding> bindings = const {},
   })  : _oscService = oscService,
         _midiService = midiService,
+        _telnetClient = telnetClient,
         _bindings = Map.from(bindings),
         _enabled = true;
 
@@ -34,6 +38,7 @@ class TriggerRouter {
   TriggerRouter.disabled()
       : _oscService = null,
         _midiService = null,
+        _telnetClient = null,
         _bindings = const {},
         _enabled = false;
 
@@ -116,13 +121,22 @@ class TriggerRouter {
       case TriggerProtocol.midi:
       case TriggerProtocol.msc:
         _executeMidi(binding, sourceId, label);
+      case TriggerProtocol.telnet:
+        _executeTelnet(binding, sourceId, label);
     }
   }
 
   void _executeOsc(
       ConsoleTriggerBinding binding, String sourceId, String label) {
-    if (_oscService == null) return;
+    if (_oscService == null) {
+      _logEvent(sourceId, label, binding, TriggerProtocol.osc,
+          success: false, error: 'No OSC service configured');
+      return;
+    }
 
+    // All OSC sends go through ConsoleOscService which checks
+    // connection state and logs its own events. But for customOsc,
+    // we must NOT bypass the service's diagnostic layer.
     switch (binding.action) {
       case ConsoleTriggerAction.fireCue:
         _oscService.fireCue(
@@ -147,30 +161,30 @@ class TriggerRouter {
         final pb = binding.params['pb'] as int? ?? 1;
         _oscService.releasePlayback(pb: pb);
       case ConsoleTriggerAction.customOsc:
+        // Route through the service's _send() which checks connection
+        // state and logs honestly, instead of bypassing to raw client.
         final address = binding.params['address'] as String? ?? '';
         final args = binding.params['args'] as List<dynamic>? ?? [];
-        _oscService.client.send(address, args);
+        _oscService.sendRaw(address, args);
       case ConsoleTriggerAction.consoleBlackout:
         _oscService.sendCommand('BlackOut');
       case ConsoleTriggerAction.customMidi:
         break; // handled by MIDI path
     }
 
-    _eventLog.add(TriggerEvent(
-      timestamp: DateTime.now(),
-      sourceId: sourceId,
-      sourceLabel: label,
-      action: binding.action,
-      protocol: TriggerProtocol.osc,
-      resolvedAddress: binding.action.name,
-      args: [binding.params],
-      success: true,
-    ));
+    // The OSC service logs its own events via its internal event log.
+    // The router also logs at its level for the Perform screen debug panel.
+    _logEvent(sourceId, label, binding, TriggerProtocol.osc,
+        success: _oscService.client.isConnected);
   }
 
   void _executeMidi(
       ConsoleTriggerBinding binding, String sourceId, String label) {
-    if (_midiService == null) return;
+    if (_midiService == null) {
+      _logEvent(sourceId, label, binding, binding.protocol,
+          success: false, error: 'No MIDI service configured');
+      return;
+    }
 
     switch (binding.action) {
       case ConsoleTriggerAction.fireCue:
@@ -184,15 +198,75 @@ class TriggerRouter {
         break;
     }
 
+    _logEvent(sourceId, label, binding, binding.protocol,
+        success: _midiService.isConnected);
+  }
+
+  void _executeTelnet(
+      ConsoleTriggerBinding binding, String sourceId, String label) {
+    if (_telnetClient == null) {
+      _logEvent(sourceId, label, binding, TriggerProtocol.telnet,
+          success: false, error: 'No Telnet client configured');
+      return;
+    }
+
+    if (!_telnetClient.isConnected) {
+      _logEvent(sourceId, label, binding, TriggerProtocol.telnet,
+          success: false, error: 'Telnet not connected');
+      return;
+    }
+
+    bool sent = false;
+    String resolvedCommand = '';
+
+    switch (binding.action) {
+      case ConsoleTriggerAction.fireCue:
+        final cuelist = int.tryParse(binding.cueList) ?? 1;
+        final cue = int.tryParse(binding.cueNumber) ?? 1;
+        resolvedCommand = 'GTQ $cuelist,$cue';
+        sent = _telnetClient.goToCue(cuelist, cue);
+      case ConsoleTriggerAction.fireMacro:
+        resolvedCommand = 'GQL ${binding.macroNumber}';
+        sent = _telnetClient.fireCuelist(binding.macroNumber);
+      case ConsoleTriggerAction.setFader:
+        final cuelist = binding.params['cuelist'] as int? ?? 1;
+        final level = (binding.faderLevel * 255).round();
+        resolvedCommand = 'SQL $cuelist,$level';
+        sent = _telnetClient.setCuelistLevel(cuelist, level);
+      case ConsoleTriggerAction.consoleBlackout:
+        resolvedCommand = 'RAQLDF';
+        sent = _telnetClient.releaseAllDimmerFirst();
+      case ConsoleTriggerAction.releasePlayback:
+        final cuelist = binding.params['cuelist'] as int? ?? 1;
+        resolvedCommand = 'RQL $cuelist';
+        sent = _telnetClient.releaseCuelist(cuelist);
+      default:
+        break;
+    }
+
+    _logEvent(sourceId, label, binding, TriggerProtocol.telnet,
+        success: sent, resolvedAddress: resolvedCommand);
+  }
+
+  void _logEvent(
+    String sourceId,
+    String label,
+    ConsoleTriggerBinding binding,
+    TriggerProtocol protocol, {
+    required bool success,
+    String? error,
+    String? resolvedAddress,
+  }) {
     _eventLog.add(TriggerEvent(
       timestamp: DateTime.now(),
       sourceId: sourceId,
       sourceLabel: label,
       action: binding.action,
-      protocol: binding.protocol,
-      resolvedAddress: binding.action.name,
+      protocol: protocol,
+      resolvedAddress: resolvedAddress ?? binding.action.name,
       args: [binding.params],
-      success: true,
+      success: success,
+      error: error,
     ));
   }
 

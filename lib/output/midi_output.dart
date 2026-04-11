@@ -225,10 +225,18 @@ class MidiOutput {
     _sendBytes(bytes);
   }
 
-  void _sendBytes(List<int> bytes) {
+  /// Last send error, if any. Null if last send succeeded or no send attempted.
+  Object? lastSendError;
+
+  Future<void> _sendBytes(List<int> bytes) async {
     final data = Uint8List.fromList(bytes);
     lastBytes = data;
-    _backend?.sendBytes(data);
+    lastSendError = null;
+    try {
+      await _backend?.sendBytes(data);
+    } catch (e) {
+      lastSendError = e;
+    }
   }
 
   /// Close the MIDI device.

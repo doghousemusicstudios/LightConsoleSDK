@@ -46,6 +46,15 @@ class CoexistenceConfig {
   final Map<int, UniverseConfig> universeRoles;
 
   /// Trigger bindings: momentId/macroId → console command.
+  ///
+  /// NOTE: These are stored here for runtime convenience but are
+  /// SHOW-scoped in ShowUp's persistence model (they belong in
+  /// .showup-show, not .showup-stage). ShowUp should load them
+  /// from the show file and inject them here at runtime, not
+  /// persist them as part of the stage's coexistence config.
+  /// Different shows at the same venue have different trigger mappings.
+  @Deprecated('Use TriggerRouter.updateBindings() at runtime. '
+      'Persist bindings in the show file, not the stage file.')
   final Map<String, ConsoleTriggerBinding> triggerBindings;
 
   /// Failover settings.

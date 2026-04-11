@@ -135,6 +135,9 @@ enum TriggerProtocol {
 
   /// MIDI Show Control (SysEx).
   msc,
+
+  /// Telnet/TCP (Onyx Manager API on port 2323).
+  telnet,
 }
 
 /// How ShowUp and the console coordinate when a trigger fires.

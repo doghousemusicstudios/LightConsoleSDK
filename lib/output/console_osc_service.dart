@@ -130,6 +130,13 @@ class ConsoleOscService {
     }
   }
 
+  /// Send a raw OSC message through the diagnostic layer.
+  /// This is used by TriggerRouter for customOsc bindings instead
+  /// of bypassing to client.send() directly.
+  void sendRaw(String address, List<dynamic> args) {
+    _send(address, args, 'customOsc');
+  }
+
   /// Disconnect from the console.
   void disconnect() => client.disconnect();
 

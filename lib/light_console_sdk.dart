@@ -57,6 +57,7 @@ export 'output/osc_client.dart';
 export 'output/console_osc_service.dart';
 export 'output/midi_output.dart';
 export 'output/console_midi_service.dart';
+export 'output/telnet_client.dart';
 export 'output/trigger_router.dart';
 
 // ── Rig Import ──
@@ -72,6 +73,7 @@ export 'capture/console_input_service.dart';
 // ── Health ──
 export 'health/console_health_monitor.dart';
 export 'health/failover_service.dart';
+export 'health/protocol_heartbeat.dart';
 export 'health/trigger_event_log.dart';
 
 // ── Export ──

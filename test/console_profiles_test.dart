@@ -121,8 +121,8 @@ void main() {
         expect(onyxProfile.id, 'onyx');
       });
 
-      test('preferred protocol is OSC', () {
-        expect(onyxProfile.preferredProtocol, ConsoleProtocol.osc);
+      test('preferred protocol is Telnet', () {
+        expect(onyxProfile.preferredProtocol, ConsoleProtocol.telnet);
       });
 
       test('supports MSC', () {

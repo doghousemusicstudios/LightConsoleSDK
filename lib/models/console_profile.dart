@@ -81,7 +81,7 @@ class ConsoleProfile {
 }
 
 /// Protocol used for outbound console communication.
-enum ConsoleProtocol { osc, midi, msc }
+enum ConsoleProtocol { osc, midi, msc, telnet }
 
 /// OSC address templates for controlling a specific console.
 class ConsoleOscPatterns {
