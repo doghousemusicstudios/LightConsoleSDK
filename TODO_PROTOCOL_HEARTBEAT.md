@@ -1,16 +1,22 @@
-# TODO: Protocol-Level Heartbeat for OSC Consoles
+# Protocol-Level Heartbeat — Implementation Status
 
-**Priority:** High (required before shipping health/failover as a safety feature)
-**Estimated effort:** 2-3 hours implementation + testing
-**Depends on:** MA3 onPC and/or Eos Nomad running for validation
+**Status:** Implemented and validated for all 4 console families.
+**Remaining:** ShowUp integration (wiring ProtocolHeartbeat into app providers).
 
 ---
 
 ## Current State
 
-`ProtocolHeartbeat` exists in `lib/health/protocol_heartbeat.dart` and works for Telnet (Onyx) because TCP connection state is meaningful. For OSC consoles (MA3, Eos, MQ), it currently just checks `OscClient.isConnected`, which only tells us the local UDP socket is open — not that the console is receiving.
+`ProtocolHeartbeat` in `lib/health/protocol_heartbeat.dart` implements validated, console-specific heartbeat strategies:
 
-UDP is connectionless. A "connected" OSC client can be sending into the void if the console has gone offline, changed IP, or stopped its OSC session. The heartbeat needs to send an actual query and listen for a response.
+- **Eos:** TCP SLIP push stream on port 3037. Eos sends `/eos/out/user` at ~10Hz on connect. Requires at least one push packet before reporting online (prevents false positive if OSC TX is disabled).
+- **MA3:** HTTP GET on port 8080. MA3's web remote returns HTTP 200 when alive. No OSC config needed.
+- **MQ:** TCP connect on port 4914. Connection accepted = alive. Requires "Enable remote control" in MQ settings.
+- **Onyx:** TCP Telnet on port 2323. Connection state is the signal; QLActive sent as keep-alive.
+
+`ConsoleOscService.connect()` auto-selects TCP SLIP for Eos and UDP for others based on the profile's heartbeat strategy.
+
+`ProtocolHeartbeat.fromFailoverConfig()` wires `FailoverConfig.timeoutSeconds` to heartbeat interval and missedThreshold.
 
 ---
 
