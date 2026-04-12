@@ -58,6 +58,7 @@ export 'output/console_osc_service.dart';
 export 'output/midi_output.dart';
 export 'output/console_midi_service.dart';
 export 'output/telnet_client.dart';
+export 'output/http_console_client.dart';
 export 'output/trigger_router.dart';
 
 // ── Rig Import ──
@@ -89,3 +90,4 @@ export 'profiles/grandma3.dart';
 export 'profiles/etc_eos.dart';
 export 'profiles/chamsys_mq.dart';
 export 'profiles/onyx.dart';
+export 'profiles/avolites_titan.dart';

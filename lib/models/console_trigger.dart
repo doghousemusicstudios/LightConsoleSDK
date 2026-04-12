@@ -138,6 +138,9 @@ enum TriggerProtocol {
 
   /// Telnet/TCP (Onyx Manager API on port 2323).
   telnet,
+
+  /// HTTP/JSON (Avolites Titan WebAPI on port 4430).
+  http,
 }
 
 /// How ShowUp and the console coordinate when a trigger fires.

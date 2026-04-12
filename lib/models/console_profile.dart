@@ -89,7 +89,7 @@ class ConsoleProfile {
 }
 
 /// Protocol used for outbound console communication.
-enum ConsoleProtocol { osc, midi, msc, telnet }
+enum ConsoleProtocol { osc, midi, msc, telnet, http }
 
 /// OSC address templates for controlling a specific console.
 class ConsoleOscPatterns {
@@ -335,6 +335,9 @@ class ConsoleConnection {
   /// Telnet port (if using Telnet protocol). Default 2323 for Onyx.
   final int? telnetPort;
 
+  /// HTTP port (if using HTTP protocol). Default 4430 for Avolites.
+  final int? httpPort;
+
   /// MIDI device ID string (if using MIDI).
   final String? midiDeviceId;
 
@@ -345,6 +348,7 @@ class ConsoleConnection {
     required this.ip,
     this.oscPort,
     this.telnetPort,
+    this.httpPort,
     this.midiDeviceId,
     required this.protocol,
   });
@@ -356,6 +360,8 @@ class ConsoleConnection {
         return oscPort;
       case ConsoleProtocol.telnet:
         return telnetPort ?? 2323;
+      case ConsoleProtocol.http:
+        return httpPort ?? 4430;
       case ConsoleProtocol.midi:
       case ConsoleProtocol.msc:
         return null;
@@ -366,6 +372,7 @@ class ConsoleConnection {
         'ip': ip,
         if (oscPort != null) 'oscPort': oscPort,
         if (telnetPort != null) 'telnetPort': telnetPort,
+        if (httpPort != null) 'httpPort': httpPort,
         if (midiDeviceId != null) 'midiDeviceId': midiDeviceId,
         'protocol': protocol.name,
       };
@@ -375,6 +382,7 @@ class ConsoleConnection {
         ip: json['ip'] as String,
         oscPort: json['oscPort'] as int?,
         telnetPort: json['telnetPort'] as int?,
+        httpPort: json['httpPort'] as int?,
         midiDeviceId: json['midiDeviceId'] as String?,
         protocol: ConsoleProtocol.values.firstWhere(
           (p) => p.name == json['protocol'],

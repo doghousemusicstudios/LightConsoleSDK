@@ -2,12 +2,13 @@ import '../models/console_profile.dart';
 import '../profiles/chamsys_mq.dart';
 import '../profiles/etc_eos.dart';
 import '../profiles/grandma3.dart';
+import '../profiles/avolites_titan.dart';
 import '../profiles/onyx.dart';
 
 /// Registry of known lighting console profiles.
 ///
 /// Ships with built-in profiles for GrandMA3, ETC Eos, ChamSys MagicQ,
-/// and Obsidian Onyx. Users can add custom profiles for other consoles.
+/// Obsidian Onyx, and Avolites Titan. Users can add custom profiles.
 class ConsoleProfilesRegistry {
   final Map<String, ConsoleProfile> _profiles = {};
 
@@ -17,6 +18,7 @@ class ConsoleProfilesRegistry {
     register(etcEosProfile);
     register(chamsysMqProfile);
     register(onyxProfile);
+    register(avolitesProfile);
   }
 
   /// All registered profiles.

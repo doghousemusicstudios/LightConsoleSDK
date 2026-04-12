@@ -3,6 +3,7 @@ import 'dart:async';
 import '../models/console_trigger.dart';
 import 'console_osc_service.dart';
 import 'console_midi_service.dart';
+import 'http_console_client.dart';
 import 'telnet_client.dart';
 
 /// Routes ShowUp moment and macro activations to console commands.
@@ -17,6 +18,7 @@ class TriggerRouter {
   final ConsoleOscService? _oscService;
   final ConsoleMidiService? _midiService;
   final TelnetClient? _telnetClient;
+  final HttpConsoleClient? _httpClient;
   final Map<String, ConsoleTriggerBinding> _bindings;
   final bool _enabled;
 
@@ -27,10 +29,12 @@ class TriggerRouter {
     ConsoleOscService? oscService,
     ConsoleMidiService? midiService,
     TelnetClient? telnetClient,
+    HttpConsoleClient? httpClient,
     Map<String, ConsoleTriggerBinding> bindings = const {},
   })  : _oscService = oscService,
         _midiService = midiService,
         _telnetClient = telnetClient,
+        _httpClient = httpClient,
         _bindings = Map.from(bindings),
         _enabled = true;
 
@@ -39,6 +43,7 @@ class TriggerRouter {
       : _oscService = null,
         _midiService = null,
         _telnetClient = null,
+        _httpClient = null,
         _bindings = const {},
         _enabled = false;
 
@@ -123,6 +128,8 @@ class TriggerRouter {
         _executeMidi(binding, sourceId, label);
       case TriggerProtocol.telnet:
         _executeTelnet(binding, sourceId, label);
+      case TriggerProtocol.http:
+        _executeHttp(binding, sourceId, label);
     }
   }
 
@@ -246,6 +253,55 @@ class TriggerRouter {
 
     _logEvent(sourceId, label, binding, TriggerProtocol.telnet,
         success: sent, resolvedAddress: resolvedCommand);
+  }
+
+  void _executeHttp(
+      ConsoleTriggerBinding binding, String sourceId, String label) {
+    if (_httpClient == null) {
+      _logEvent(sourceId, label, binding, TriggerProtocol.http,
+          success: false, error: 'No HTTP client configured');
+      return;
+    }
+
+    if (!_httpClient.isConnected) {
+      _logEvent(sourceId, label, binding, TriggerProtocol.http,
+          success: false, error: 'HTTP client not connected');
+      return;
+    }
+
+    String resolvedPath = '';
+
+    // Fire async but don't block the trigger return.
+    // HTTP gives us a response we can log.
+    Future<bool> execute() async {
+      switch (binding.action) {
+        case ConsoleTriggerAction.fireCue:
+          final userNumber = int.tryParse(binding.cueNumber) ?? 1;
+          resolvedPath = 'Playbacks/FirePlaybackAtLevel?userNumber=$userNumber&level=1.0';
+          return await _httpClient.firePlayback(userNumber);
+        case ConsoleTriggerAction.setFader:
+          final userNumber = binding.params['userNumber'] as int? ?? 1;
+          resolvedPath = 'Playbacks/FirePlaybackAtLevel?userNumber=$userNumber&level=${binding.faderLevel}';
+          return await _httpClient.firePlayback(userNumber, level: binding.faderLevel);
+        case ConsoleTriggerAction.releasePlayback:
+          final userNumber = binding.params['userNumber'] as int? ?? 1;
+          resolvedPath = 'Playbacks/KillPlayback?userNumber=$userNumber';
+          return await _httpClient.killPlayback(userNumber);
+        case ConsoleTriggerAction.consoleBlackout:
+          resolvedPath = 'Playbacks/KillAllPlaybacks';
+          return await _httpClient.killAllPlaybacks();
+        default:
+          resolvedPath = 'unsupported action: ${binding.action.name}';
+          return false;
+      }
+    }
+
+    execute().then((success) {
+      _logEvent(sourceId, label, binding, TriggerProtocol.http,
+          success: success,
+          resolvedAddress: '/titan/script/$resolvedPath',
+          error: success ? null : 'HTTP request failed');
+    });
   }
 
   void _logEvent(
