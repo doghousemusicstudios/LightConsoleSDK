@@ -30,7 +30,7 @@ const grandMa3Profile = ConsoleProfile(
   ),
   detection: ConsoleDetectionPatterns(
     oemCodes: [0x0001, 0x0D14], // MA Lighting OEM codes
-    namePatterns: ['grandma', 'gma3', 'gma2', 'ma lighting', 'ma3'],
+    namePatterns: ['grandma3', 'gma3', 'ma3', 'ma lighting'],
     estaCodes: [0x4D41], // 'MA' in ASCII
   ),
   defaultSacnPriority: 50,

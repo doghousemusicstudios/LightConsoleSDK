@@ -86,6 +86,7 @@ export 'advanced/timecode_service.dart';
 export 'advanced/complement_analyzer.dart';
 
 // ── Built-in Console Profiles ──
+export 'profiles/grandma2.dart';
 export 'profiles/grandma3.dart';
 export 'profiles/etc_eos.dart';
 export 'profiles/chamsys_mq.dart';

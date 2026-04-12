@@ -206,8 +206,9 @@ void main() {
     });
 
     group('ConsoleProfilesRegistry', () {
-      test('contains all 5 built-in profiles', () {
+      test('contains all 6 built-in profiles', () {
         final registry = ConsoleProfilesRegistry();
+        expect(registry.getProfile('grandma2'), isNotNull);
         expect(registry.getProfile('grandma3'), isNotNull);
         expect(registry.getProfile('eos'), isNotNull);
         expect(registry.getProfile('chamsys_mq'), isNotNull);

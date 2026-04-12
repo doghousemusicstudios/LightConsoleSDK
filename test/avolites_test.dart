@@ -67,9 +67,9 @@ void main() {
           'Avolites Titan');
     });
 
-    test('registry now has 5 built-in profiles', () {
+    test('registry now has 6 built-in profiles', () {
       final registry = ConsoleProfilesRegistry();
-      expect(registry.profiles.length, 5);
+      expect(registry.profiles.length, 6);
     });
 
     test('serialization round-trip', () {
