@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How ShowUp Works With Your Console</title>
+<style>
+  :root {
+    --bg-deepest: #06060f;
+    --bg-deep: #0d0d1a;
+    --bg-surface: #14142a;
+    --bg-elevated: #1c1c3a;
+    --bg-hover: #24244a;
+    --primary: #7c3aed;
+    --primary-glow: rgba(124, 58, 237, 0.3);
+    --primary-soft: rgba(124, 58, 237, 0.15);
+    --console-blue: #3b82f6;
+    --console-glow: rgba(59, 130, 246, 0.15);
+    --shared-green: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --text-primary: #e5e7eb;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --border: rgba(255,255,255,0.06);
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+    background: var(--bg-deepest); color: var(--text-primary); line-height: 1.6;
+  }
+
+  /* Hero */
+  .hero {
+    text-align: center; padding: 60px 24px 40px; position: relative;
+  }
+  .hero::before {
+    content: ''; position: absolute; top: -80px; left: 50%; transform: translateX(-50%);
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero h1 {
+    font-size: 42px; font-weight: 800; letter-spacing: -1.5px;
+    background: linear-gradient(135deg, var(--primary), #a78bfa, var(--console-blue));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 12px; position: relative;
+  }
+  .hero .sub { font-size: 18px; color: var(--text-secondary); max-width: 600px; margin: 0 auto 32px; }
+
+  /* Nav */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(13,13,26,0.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: center; gap: 2px; padding: 8px 16px; flex-wrap: wrap;
+  }
+  .nav-btn {
+    padding: 8px 16px; border-radius: var(--radius-sm); font-size: 13px;
+    font-weight: 500; color: var(--text-muted); cursor: pointer; border: none;
+    background: none; transition: all 0.2s;
+  }
+  .nav-btn:hover { color: var(--text-secondary); background: var(--bg-surface); }
+  .nav-btn.active { color: var(--text-primary); background: var(--primary-soft); }
+
+  /* Sections */
+  .section { display: none; max-width: 800px; margin: 0 auto; padding: 40px 24px; }
+  .section.active { display: block; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+  .section h2 { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+  .section .sub { font-size: 14px; color: var(--text-secondary); margin-bottom: 28px; }
+
+  /* Cards */
+  .card {
+    background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; margin-bottom: 16px;
+  }
+  .card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .card p { font-size: 13px; color: var(--text-secondary); }
+
+  /* Steps */
+  .step-list { counter-reset: steps; }
+  .step-item {
+    display: flex; gap: 16px; margin-bottom: 24px; position: relative;
+  }
+  .step-item::before {
+    counter-increment: steps; content: counter(steps);
+    width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 700; color: white; background: var(--primary);
+  }
+  .step-item.console-step::before { background: var(--console-blue); }
+  .step-item.bridge-step::before { background: var(--shared-green); }
+  .step-content h4 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .step-content p { font-size: 13px; color: var(--text-secondary); }
+  .step-code {
+    font-family: 'SF Mono', monospace; font-size: 11px; color: var(--shared-green);
+    background: var(--bg-deep); padding: 4px 8px; border-radius: 4px;
+    display: inline-block; margin-top: 4px;
+  }
+
+  /* Diagram */
+  .diagram {
+    background: var(--bg-deep); border-radius: var(--radius); padding: 24px;
+    margin: 20px 0; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .diagram-row {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    justify-content: center;
+  }
+  .diagram-box {
+    padding: 12px 20px; border-radius: var(--radius-sm); font-size: 13px;
+    font-weight: 600; text-align: center; min-width: 140px;
+  }
+  .diagram-box.showup { background: var(--primary-soft); border: 1px solid rgba(124,58,237,0.3); color: var(--primary); }
+  .diagram-box.console { background: var(--console-glow); border: 1px solid rgba(59,130,246,0.3); color: var(--console-blue); }
+  .diagram-box.bridge { background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); color: var(--shared-green); }
+  .diagram-box.network { background: var(--bg-surface); border: 1px solid var(--border); color: var(--text-muted); font-size: 11px; }
+  .diagram-arrow { color: var(--text-muted); font-size: 18px; }
+  .diagram-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* Console selector */
+  .console-pills {
+    display: flex; gap: 6px; flex-wrap: wrap; margin: 16px 0;
+  }
+  .console-pill {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    cursor: pointer; border: 1px solid var(--border); background: var(--bg-surface);
+    color: var(--text-muted); transition: all 0.2s;
+  }
+  .console-pill:hover { border-color: var(--text-muted); }
+  .console-pill.active { border-color: var(--primary); color: var(--text-primary); background: var(--primary-soft); }
+
+  /* Scenario cards */
+  .scenario { border-left: 3px solid var(--primary); padding-left: 16px; margin: 20px 0; }
+  .scenario.console-scenario { border-color: var(--console-blue); }
+  .scenario h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .scenario p { font-size: 13px; color: var(--text-secondary); }
+
+  /* Mockup */
+  .mockup {
+    background: var(--bg-deep); border-radius: var(--radius); padding: 16px;
+    font-size: 12px; margin: 16px 0;
+  }
+  .mockup-row {
+    display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+    border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .mockup-row:last-child { border-bottom: none; }
+  .mockup-label {
+    font-size: 11px; font-weight: 600; color: var(--text-muted);
+    min-width: 80px; text-transform: uppercase; letter-spacing: 0.3px;
+  }
+  .mockup-btn {
+    padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 500;
+    border: 1px solid var(--border); cursor: pointer; transition: all 0.2s;
+  }
+  .mockup-btn.showup { background: var(--primary-soft); color: var(--primary); border-color: rgba(124,58,237,0.3); }
+  .mockup-btn.showup.active { background: var(--primary); color: white; box-shadow: 0 0 12px var(--primary-glow); }
+  .mockup-btn.console { background: var(--console-glow); color: var(--console-blue); border-color: rgba(59,130,246,0.3); }
+  .mockup-btn.captured { background: rgba(16,185,129,0.1); color: var(--shared-green); border-color: rgba(16,185,129,0.3); }
+
+  /* Animated connection */
+  .pulse-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--shared-green); animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
+    50% { opacity: 0.8; box-shadow: 0 0 8px 3px rgba(16,185,129,0.2); }
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 28px; }
+    .diagram-row { flex-direction: column; gap: 4px; }
+    .diagram-arrow { transform: rotate(90deg); }
+  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>How ShowUp Works With Your Console</h1>
+  <p class="sub">From first connection to live performance. A step-by-step guide for DJs, worship teams, theater techs, and venue operators.</p>
+</div>
+
+<div class="nav">
+  <button class="nav-btn active" onclick="show('big-picture')">The Big Picture</button>
+  <button class="nav-btn" onclick="show('connect')">1. Connect</button>
+  <button class="nav-btn" onclick="show('fixtures')">2. Sync Fixtures</button>
+  <button class="nav-btn" onclick="show('map')">3. Map Cues</button>
+  <button class="nav-btn" onclick="show('perform')">4. Perform</button>
+  <button class="nav-btn" onclick="show('capture')">5. Capture Looks</button>
+  <button class="nav-btn" onclick="show('failover')">6. Failover</button>
+</div>
+
+<!-- ═══ BIG PICTURE ═══ -->
+<div class="section active" id="s-big-picture">
+  <h2>ShowUp + Console = Superpower</h2>
+  <p class="sub">ShowUp handles reactive, music-driven lighting. The console handles precise cue programming. Together, they cover everything.</p>
+
+  <div class="diagram">
+    <div class="diagram-label">Your iPad / Mac</div>
+    <div class="diagram-box showup">ShowUp</div>
+    <div class="diagram-label" style="margin-top:4px;">music-reactive effects, moods, moments, mobile control</div>
+    <div class="diagram-arrow" style="margin:12px 0;">&#x2195;</div>
+    <div class="diagram-box bridge">LightConsoleSDK</div>
+    <div class="diagram-label">OSC / Telnet / HTTP / MIDI / sACN</div>
+    <div class="diagram-arrow" style="margin:12px 0;">&#x2195;</div>
+    <div class="diagram-box console">Your Console</div>
+    <div class="diagram-label">cue stacks, tracking, precise timing, house lights</div>
+  </div>
+
+  <div class="card">
+    <h3>6 Console Families Supported</h3>
+    <div class="console-pills" style="margin-top:12px;">
+      <span class="console-pill active">ETC Eos</span>
+      <span class="console-pill active">GrandMA3</span>
+      <span class="console-pill active">GrandMA2</span>
+      <span class="console-pill active">ChamSys MQ</span>
+      <span class="console-pill active">Avolites Titan</span>
+      <span class="console-pill active">Obsidian Onyx</span>
+    </div>
+    <p style="margin-top:8px;">Each uses a different protocol, but ShowUp handles the translation. You never need to think about OSC addresses or Telnet commands.</p>
+  </div>
+
+  <div class="card">
+    <h3>Three Ways to Work Together</h3>
+    <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-top:12px;">
+      <div style="text-align:center; padding:16px; background:var(--bg-deep); border-radius:var(--radius-sm);">
+        <div style="font-size:28px; margin-bottom:8px;">&#x21C6;</div>
+        <div style="font-size:13px; font-weight:600;">Side by Side</div>
+        <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Separate universes. No overlap.</div>
+      </div>
+      <div style="text-align:center; padding:16px; background:var(--bg-deep); border-radius:var(--radius-sm);">
+        <div style="font-size:28px; margin-bottom:8px;">&#x26A1;</div>
+        <div style="font-size:13px; font-weight:600;">Trigger Mode</div>
+        <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">ShowUp sends commands to console.</div>
+      </div>
+      <div style="text-align:center; padding:16px; background:var(--bg-deep); border-radius:var(--radius-sm); opacity:0.5;">
+        <div style="font-size:28px; margin-bottom:8px;">&#x25D2;</div>
+        <div style="font-size:13px; font-weight:600;">Layer Mode</div>
+        <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Coming in Phase 2.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONNECT ═══ -->
+<div class="section" id="s-connect">
+  <h2>1. Connect to Your Console</h2>
+  <p class="sub">ShowUp finds your console on the network or you tell it where to look.</p>
+
+  <div class="step-list">
+    <div class="step-item">
+      <div class="step-content">
+        <h4>Select your console</h4>
+        <p>Open Stage Setup in ShowUp. Pick your console from the dropdown: ETC Eos, GrandMA3, GrandMA2, ChamSys MagicQ, Avolites Titan, or Obsidian Onyx.</p>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-content">
+        <h4>Enter the console's IP address</h4>
+        <p>Type the IP (e.g., <code>192.168.1.100</code>). If you don't know it, tap <strong>"Scan Network"</strong> and ShowUp will search via ArtPoll broadcast.</p>
+      </div>
+    </div>
+    <div class="step-item bridge-step">
+      <div class="step-content">
+        <h4>Network diagnostic runs automatically</h4>
+        <p>ShowUp tests connectivity: can it reach the console? Is multicast working? Any firewall issues? You'll see green checkmarks or clear guidance on what to fix.</p>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-content">
+        <h4>Test the connection</h4>
+        <p>Tap <strong>"Test Connection"</strong>. ShowUp sends a heartbeat ping and shows the response time.</p>
+        <div class="step-code">ETC Eos: TCP connect to port 3037 &mdash; 8ms</div><br>
+        <div class="step-code">GrandMA3: HTTP 200 on port 8080 &mdash; 12ms</div><br>
+        <div class="step-code">Avolites: HTTP 200 on port 4430 &mdash; 6ms</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>What Each Console Needs</h3>
+    <div style="font-size:12px; color:var(--text-secondary); margin-top:8px;">
+      <div style="padding:8px 0; border-bottom:1px solid var(--border);"><strong>ETC Eos:</strong> Enable OSC TX+RX in Show Control settings. Third-Party OSC port 3037.</div>
+      <div style="padding:8px 0; border-bottom:1px solid var(--border);"><strong>GrandMA3:</strong> Add OSC "In & Out" entry in Network > Protocols. Start a session.</div>
+      <div style="padding:8px 0; border-bottom:1px solid var(--border);"><strong>GrandMA2:</strong> Enable Telnet in Setup > Console > Global Settings. Port 30000.</div>
+      <div style="padding:8px 0; border-bottom:1px solid var(--border);"><strong>ChamSys MQ:</strong> Set OSC TX/RX ports in Setup > Net. Hardware dongle for Unlocked Mode.</div>
+      <div style="padding:8px 0; border-bottom:1px solid var(--border);"><strong>Avolites Titan:</strong> Nothing &mdash; WebAPI on port 4430 is always on.</div>
+      <div style="padding:8px 0;"><strong>Obsidian Onyx:</strong> Run Onyx Manager with Telnet enabled. Port 2323.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FIXTURES ═══ -->
+<div class="section" id="s-fixtures">
+  <h2>2. Sync Your Fixtures</h2>
+  <p class="sub">ShowUp needs to know what fixtures are on the network. Three ways to tell it.</p>
+
+  <div class="step-list">
+    <div class="step-item">
+      <div class="step-content">
+        <h4>Option A: Import an MVR file</h4>
+        <p>Your LD exports an MVR file from the console or Vectorworks. ShowUp reads fixtures, addresses, universes, and groups. One tap.</p>
+        <p style="margin-top:4px; color:var(--shared-green); font-size:11px;">Works with: MA3, Eos, ChamSys, Avolites (via Capture)</p>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-content">
+        <h4>Option B: Import a CSV patch list</h4>
+        <p>Any console can export a patch list as CSV. ShowUp auto-detects column headers and address formats (<code>1.001</code>, <code>U1 A001</code>, flat numbering).</p>
+        <p style="margin-top:4px; color:var(--shared-green); font-size:11px;">Works with: every console</p>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-content">
+        <h4>Option C: Query the console live</h4>
+        <p>For ETC Eos, ShowUp can query patch, groups, and palettes directly via OSC. For Onyx, ShowUp reads cuelist names via Telnet. No file export needed.</p>
+        <p style="margin-top:4px; color:var(--shared-green); font-size:11px;">Works with: Eos (full), Onyx (cuelist names), Avolites (handle names)</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Universe Assignment</h3>
+    <p>After import, ShowUp shows a color-coded universe map. Tap to assign each universe:</p>
+    <div style="display:flex; gap:8px; margin:12px 0; flex-wrap:wrap;">
+      <span style="padding:6px 12px; border-radius:6px; background:var(--primary-soft); color:var(--primary); font-size:12px; font-weight:600;">ShowUp</span>
+      <span style="padding:6px 12px; border-radius:6px; background:var(--console-glow); color:var(--console-blue); font-size:12px; font-weight:600;">Console</span>
+      <span style="padding:6px 12px; border-radius:6px; background:rgba(16,185,129,0.1); color:var(--shared-green); font-size:12px; font-weight:600;">Shared (Phase 2)</span>
+    </div>
+    <p>ShowUp only outputs DMX on its own universes. Console-owned universes are monitored but never touched.</p>
+  </div>
+
+  <div class="card">
+    <h3>GDTF Fixture Import</h3>
+    <p>New fixtures with GDTF profiles work immediately. ShowUp maps GDTF attributes (ColorAdd_R, Pan, Tilt, Gobo1, etc.) to its internal capability system. No waiting for library updates.</p>
+    <p style="margin-top:8px; color:var(--shared-green); font-size:11px;">Supported on: MA3 (co-creator), ChamSys (first adopter), Eos (v3.2.4+), Avolites (v17+)</p>
+  </div>
+</div>
+
+<!-- ═══ MAP ═══ -->
+<div class="section" id="s-map">
+  <h2>3. Map Cues to Moments</h2>
+  <p class="sub">Connect ShowUp's moment-based workflow to the console's cue-based workflow.</p>
+
+  <div class="card">
+    <h3>What's a Moment?</h3>
+    <p>In ShowUp, a <strong>Moment</strong> is a song section: Intro, Verse, Chorus, Bridge, Drop, Outro. Each moment has a look (colors, movement, energy level) that ShowUp generates reactively.</p>
+    <p style="margin-top:8px;">On the console, the equivalent is a <strong>Cue</strong> &mdash; a static lighting state with programmed fade times.</p>
+    <p style="margin-top:8px;">The bridge: when you activate a moment in ShowUp, it can also fire the corresponding cue on the console.</p>
+  </div>
+
+  <div class="step-list">
+    <div class="step-item">
+      <div class="step-content">
+        <h4>Open the trigger binding</h4>
+        <p>Each moment card in Perform has a small chain-link icon. Tap it to open the binding sheet.</p>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-content">
+        <h4>Choose what to tell the console</h4>
+        <p>Pick an action: <strong>Go to Cue</strong>, <strong>Fire Macro</strong>, <strong>Set Fader</strong>, or <strong>Custom Command</strong>. Enter the cue number or fader level.</p>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-content">
+        <h4>Choose how to coordinate</h4>
+        <p><strong>Both:</strong> ShowUp applies its reactive look AND fires the console cue simultaneously.<br>
+        <strong>Console Only:</strong> Only the console cue fires. ShowUp sits this one out.<br>
+        <strong>ShowUp Only:</strong> Only ShowUp's reactive effects. Console stays on its current cue.</p>
+      </div>
+    </div>
+    <div class="step-item bridge-step">
+      <div class="step-content">
+        <h4>Test the trigger</h4>
+        <p>Tap <strong>"Test"</strong> to fire the command right now. Watch the console respond. The trigger log shows exactly what was sent.</p>
+        <div class="step-code">Eos: /eos/cue/1/3/fire</div><br>
+        <div class="step-code">MA3: /gma3/cmd "Go+ Cue 3"</div><br>
+        <div class="step-code">Avolites: FirePlaybackAtLevel?userNumber=3</div><br>
+        <div class="step-code">Onyx: GTQ 1,3</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Auto-Map by Order</h3>
+    <p>For the common case where moments and cues are in the same order, tap <strong>"Auto-Map"</strong>. ShowUp maps Moment 1 to Cue 1, Moment 2 to Cue 2, etc. Adjust individual bindings after.</p>
+  </div>
+</div>
+
+<!-- ═══ PERFORM ═══ -->
+<div class="section" id="s-perform">
+  <h2>4. Perform</h2>
+  <p class="sub">One screen. Both systems. Coordinated from your iPad.</p>
+
+  <div class="mockup">
+    <div class="mockup-row">
+      <span class="mockup-label">Moments</span>
+      <span class="mockup-btn showup" onclick="simMoment(this)">Intro</span>
+      <span class="mockup-btn showup" onclick="simMoment(this)">Verse</span>
+      <span class="mockup-btn showup active" onclick="simMoment(this)">Chorus</span>
+      <span class="mockup-btn showup" onclick="simMoment(this)">Drop</span>
+      <span class="mockup-btn showup" onclick="simMoment(this)">Outro</span>
+    </div>
+    <div class="mockup-row">
+      <span class="mockup-label">Console</span>
+      <span class="mockup-btn console" onclick="simConsole(this)">Cue 1: Wash</span>
+      <span class="mockup-btn console" onclick="simConsole(this)">Cue 5: Color</span>
+      <span class="mockup-btn console" onclick="simConsole(this)">Blackout</span>
+      <span class="mockup-btn console" onclick="simConsole(this)">Release All</span>
+    </div>
+    <div class="mockup-row">
+      <span class="mockup-label">Macros</span>
+      <span class="mockup-btn showup" onclick="simMacro(this)">Lift</span>
+      <span class="mockup-btn showup" onclick="simMacro(this)">Pull Back</span>
+      <span class="mockup-btn showup" onclick="simMacro(this)">Big Finish</span>
+      <span class="mockup-btn showup" onclick="simMacro(this)">Reset Room</span>
+    </div>
+    <div class="mockup-row">
+      <span class="mockup-label">Captured</span>
+      <span class="mockup-btn captured" onclick="simCapture(this)">LD Warm Wash</span>
+      <span class="mockup-btn captured" onclick="simCapture(this)">Blue Backlight</span>
+      <span class="mockup-btn captured" onclick="simCapture(this)">Spotlight</span>
+    </div>
+  </div>
+
+  <div id="triggerLog" class="card" style="display:none;">
+    <h3><span class="pulse-dot"></span> &nbsp;Trigger Fired</h3>
+    <p id="triggerText" style="font-family:'SF Mono',monospace; color:var(--shared-green); margin-top:8px;"></p>
+  </div>
+
+  <div class="card">
+    <h3>What Happens When You Tap "Chorus"</h3>
+    <div class="step-list" style="margin-top:12px;">
+      <div class="step-item">
+        <div class="step-content">
+          <h4>ShowUp applies the Chorus look</h4>
+          <p>Colors shift to high-energy palette, movement speeds up, dimmer rises. Reactive to the music.</p>
+        </div>
+      </div>
+      <div class="step-item bridge-step">
+        <div class="step-content">
+          <h4>SDK fires the mapped console command</h4>
+          <p>The trigger binding says "Chorus = Cue 3". ShowUp sends the command to the console via the appropriate protocol.</p>
+        </div>
+      </div>
+      <div class="step-item console-step">
+        <div class="step-content">
+          <h4>Console transitions to Cue 3</h4>
+          <p>The console fades its fixtures to the programmed state on its own universes.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-content">
+          <h4>Both systems run simultaneously</h4>
+          <p>ShowUp's reactive layer and the console's programmed cue complement each other. One tap, two systems.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Console-Driven Mode</h3>
+    <p>If the console has feedback (Eos, MagicQ, or MA3 with plugin), ShowUp can follow the LD's cues automatically. The LD presses GO on their desk; ShowUp detects the cue change and advances its moment to match. Zero ShowUp interaction needed during the show.</p>
+  </div>
+</div>
+
+<!-- ═══ CAPTURE ═══ -->
+<div class="section" id="s-capture">
+  <h2>5. Capture Looks from the Console</h2>
+  <p class="sub">Record the console's DMX output as a ShowUp look. The "stunt double" workflow.</p>
+
+  <div class="step-list">
+    <div class="step-item console-step">
+      <div class="step-content">
+        <h4>LD programs a look on the console</h4>
+        <p>The lighting designer sets up the perfect front wash, spotlight, or color scheme on the console.</p>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-content">
+        <h4>Tap "Capture" in ShowUp</h4>
+        <p>ShowUp enters capture mode. A pulsing border appears. ShowUp reads the console's DMX output via sACN.</p>
+      </div>
+    </div>
+    <div class="step-item bridge-step">
+      <div class="step-content">
+        <h4>ShowUp snapshots the DMX state</h4>
+        <p>Every channel on every universe is recorded. ShowUp stores both the raw DMX values (for perfect reproduction) and a best-guess conversion to ShowUp's effect parameters (for editing).</p>
+      </div>
+    </div>
+    <div class="step-item">
+      <div class="step-content">
+        <h4>Name it and assign it</h4>
+        <p>Give the captured look a name ("LD Warm Wash") and optionally assign it to a moment. It appears in the Captured Looks row on Perform.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="scenario">
+    <h4>The Wedding DJ Scenario</h4>
+    <p>House LD programs 8 looks on ChamSys before leaving at 6pm. The DJ captures all 8 into ShowUp. For the rest of the night, the DJ recalls those looks from ShowUp's Perform screen. The $50K rig runs at full potential without the LD present.</p>
+  </div>
+
+  <div class="scenario console-scenario">
+    <h4>The Concert Venue Scenario</h4>
+    <p>Between sets, ShowUp runs ambient lighting that reacts to house music. When the touring LD takes the stage, their console overrides via sACN priority. ShowUp stays on ambient. Changeovers feel alive instead of dead.</p>
+  </div>
+</div>
+
+<!-- ═══ FAILOVER ═══ -->
+<div class="section" id="s-failover">
+  <h2>6. Failover &amp; Health</h2>
+  <p class="sub">What happens when the console goes offline? ShowUp has your back.</p>
+
+  <div class="card">
+    <h3><span class="pulse-dot"></span> &nbsp;Always Watching</h3>
+    <p>ShowUp monitors the console's health every 5 seconds using the validated heartbeat for each console:</p>
+    <div style="font-size:12px; color:var(--text-secondary); margin-top:12px;">
+      <div style="padding:6px 0;"><strong>Eos:</strong> TCP push stream on 3037 &mdash; Eos sends data at 10Hz. If stream stops, console is offline.</div>
+      <div style="padding:6px 0;"><strong>MA3:</strong> HTTP GET on port 8080 &mdash; web remote returns 200. No OSC config needed.</div>
+      <div style="padding:6px 0;"><strong>MA2:</strong> HTTP GET on port 8080 &mdash; same web remote pattern as MA3.</div>
+      <div style="padding:6px 0;"><strong>MagicQ:</strong> TCP connect on port 4914 &mdash; connection accepted = alive.</div>
+      <div style="padding:6px 0;"><strong>Avolites:</strong> HTTP GET on port 4430 &mdash; WebAPI returns software version.</div>
+      <div style="padding:6px 0;"><strong>Onyx:</strong> TCP Telnet on 2323 &mdash; connection state + QLActive keep-alive.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>If the Console Drops</h3>
+    <div class="step-list" style="margin-top:12px;">
+      <div class="step-item">
+        <div class="step-content">
+          <h4>15 consecutive heartbeats missed</h4>
+          <p>ShowUp waits a conservative 15 intervals before reacting. A brief cable jiggle won't trigger failover.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-content">
+          <h4>Operator confirmation (default)</h4>
+          <p>ShowUp shows a notification: "Console offline. Take over?" The operator decides. No auto-takeover surprises.</p>
+        </div>
+      </div>
+      <div class="step-item bridge-step">
+        <div class="step-content">
+          <h4>Gradual takeover</h4>
+          <p>ShowUp fades in on the console's universes over 3 seconds. Applies the last captured look or a warm ambient wash. <strong>Never blackout by default. Strobe is not an option.</strong></p>
+        </div>
+      </div>
+      <div class="step-item console-step">
+        <div class="step-content">
+          <h4>Console comes back</h4>
+          <p>ShowUp detects the heartbeat resuming and fades back to its own universes over 2 seconds. The console regains control seamlessly.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="border-color: rgba(16,185,129,0.3);">
+    <h3 style="color:var(--shared-green);">The Status Dot</h3>
+    <p>ShowUp's top bar shows a console indicator at all times:</p>
+    <div style="display:flex; gap:20px; margin-top:12px; font-size:13px;">
+      <span><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--shared-green); margin-right:6px;"></span> Connected</span>
+      <span><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--warning); margin-right:6px;"></span> Detected, not configured</span>
+      <span><span style="display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--danger); margin-right:6px;"></span> Connection lost</span>
+    </div>
+  </div>
+</div>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('s-' + id).classList.add('active');
+  event.target.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+const commands = {
+  'Intro': '/eos/cue/1/1/fire',
+  'Verse': '/gma3/cmd "Go+ Cue 2"',
+  'Chorus': '/eos/cue/1/3/fire',
+  'Drop': 'GTQ 1,5 (Telnet)',
+  'Outro': 'FirePlaybackAtLevel?userNumber=6 (HTTP)',
+};
+
+function simMoment(el) {
+  document.querySelectorAll('.mockup-btn.showup').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  const name = el.textContent;
+  showTrigger(commands[name] || '/eos/cue/1/1/fire', name);
+}
+
+function simConsole(el) {
+  el.style.background = 'rgba(59,130,246,0.3)';
+  setTimeout(() => el.style.background = '', 400);
+  showTrigger('Console: ' + el.textContent, 'Quick Action');
+}
+
+function simMacro(el) {
+  el.style.background = 'var(--primary)'; el.style.color = 'white';
+  setTimeout(() => { el.style.background = ''; el.style.color = ''; }, 400);
+  showTrigger('ShowUp WOW FX + Console blackout', el.textContent);
+}
+
+function simCapture(el) {
+  el.style.background = 'rgba(16,185,129,0.25)';
+  setTimeout(() => el.style.background = '', 400);
+  showTrigger('Raw DMX recall: 512 channels on universe 1-2', el.textContent);
+}
+
+function showTrigger(cmd, label) {
+  const log = document.getElementById('triggerLog');
+  const text = document.getElementById('triggerText');
+  log.style.display = 'block';
+  text.textContent = label + ' → ' + cmd;
+  log.style.animation = 'none';
+  log.offsetHeight;
+  log.style.animation = 'fadeIn 0.3s ease';
+}
+</script>
+</body>
+</html>
