@@ -305,50 +305,90 @@ light_console_sdk/
 
 ---
 
+### Avolites Titan (Arena, Sapphire Touch, Tiger Touch, Quartz, T2, T3)
+
+**Connection:** HTTP/JSON WebAPI on port 4430. No OSC support. MIDI input only (MSC).
+
+**What ShowUp can do via HTTP WebAPI (port 4430):**
+- **Fire playbacks:** `/titan/script/Playbacks/FirePlaybackAtLevel?userNumber={n}&level=1.0`
+- **Kill playbacks:** `/titan/script/Playbacks/KillPlayback?userNumber={n}`
+- **Kill all playbacks:** `/titan/script/Playbacks/KillAllPlaybacks`
+- **Set master levels:** `/titan/script/Masters/SetMasterLevel?...`
+- **Read playback state:** `/titan/handles/Playbacks` — JSON with active status, legend, titanId
+- **Read show name:** `/titan/get/Show/ShowName`
+- **Read software version:** `/titan/get/System/SoftwareVersion`
+- Share the network via sACN with configurable priority per universe
+- Import GDTF fixtures (Titan v17+ via Personality Builder)
+- Import MVR via Capture integration
+- Use MIDI Show Control (MSC) for inbound triggers
+
+**Heartbeat (validated pattern):**
+- HTTP GET to `/titan/get/System/SoftwareVersion` — HTTP 200 = alive
+- Same heartbeat strategy as MA3 (httpGet), proven reliable
+- Port 4430 is always available when Titan is running (no extra config needed)
+
+**Bidirectional feedback:**
+- Handle state queries return JSON with active/inactive status for all playbacks
+- Must poll (no push stream like Eos) — but HTTP polling is more reliable than UDP
+- Every command gets a JSON response confirming execution — more diagnostic-honest than OSC
+
+**What ShowUp cannot do:**
+- No OSC at all — all control is HTTP
+- No real-time fader position feedback (only active/inactive state per handle)
+- No per-cue event notifications (must poll handles endpoint)
+- WebAPI not available on Titan One or T1 dongle
+- Titan PC Suite requires an AvoKey/dongle for simulator mode
+
+**Special considerations:**
+- The HTTP WebAPI is the same interface used by the official Titan Remote app (iOS/Android) and Bitfocus Companion
+- HTTP gives confirmed execution — every command returns a JSON response, unlike fire-and-forget OSC
+- Playbacks are identified by User Number (visible in the Titan UI), not by fader position
+- Titan supports both sACN and Art-Net output with configurable sACN priority
+
+---
+
 ## Console Feature Gap Analysis
 
 ### Protocol Support Matrix
 
-| Feature | GrandMA3 | ETC Eos | ChamSys MQ | Onyx |
-|---------|:--------:|:-------:|:----------:|:----:|
-| OSC Output (ShowUp → Console) | Yes (via /cmd) | **Best** (dedicated addresses) | Yes (10 PBs built-in) | Limited (10 faders via OSC) |
-| Telnet/TCP Control | No | No | No | **Yes — any cuelist, any cue** |
-| OSC Input (Console → ShowUp) | **Lua plugin** | **Full native** | **Built-in feedback** | Main PBs only |
-| MIDI Show Control | No | **Yes** (32 sources) | Partial | **Yes** |
-| MIDI Transmit (Console → ShowUp) | Notes only | MSC + Notes | **Notes on playback** | None |
-| sACN Output | Yes | **Yes (inventor)** | Yes | Yes |
-| sACN Priority Merging | Yes | Yes | Yes | Yes |
-| Art-Net | Yes | Yes | Yes | Yes |
-| MVR Import/Export | **Yes (co-creator)** | Yes (import) | Yes (import) | **No** |
-| GDTF Fixtures | **Yes (co-creator)** | Yes (limited) | Yes (first adopter) | **No** |
-| Bidirectional State | **Yes (via plugin)** | **Yes (native)** | **Yes (built-in)** | **Yes (Telnet polling)** |
-| Cuelist Names Readable | Via XML export | Via OSC query | Via CSV export | **Yes (QLList via Telnet)** |
-| Alternative Protocol | Lua API, WebSocket | — | **CREP (binary UDP)** | **Telnet API (port 2323)** |
-| Free Software | onPC (no DMX out) | Nomad (no DMX out) | **64 universes free** | 1 universe free |
+| Feature | GrandMA3 | ETC Eos | ChamSys MQ | Onyx | Avolites |
+|---------|:--------:|:-------:|:----------:|:----:|:--------:|
+| Primary Protocol | OSC (UDP) | OSC (TCP SLIP) | OSC (UDP) | Telnet (TCP) | **HTTP/JSON** |
+| OSC Output (ShowUp → Console) | Yes (via /cmd) | **Best** (dedicated) | Yes (10 PBs) | Limited (10 faders) | **No OSC** |
+| Telnet/TCP Control | No | No | No | **Yes — any cuelist** | No |
+| HTTP Control | No | No | No | No | **Yes (port 4430)** |
+| Console → ShowUp Feedback | **Lua plugin** | **Full native** | **Built-in** | Telnet polling | **HTTP handle polling** |
+| MIDI Show Control | No | **Yes** (32 sources) | Partial | **Yes** | MSC input only |
+| sACN Priority Merging | Yes | Yes | Yes | Yes | **Yes** |
+| MVR Import/Export | **Yes (co-creator)** | Yes (import) | Yes (import) | **No** | Via Capture |
+| GDTF Fixtures | **Yes (co-creator)** | Yes (limited) | Yes (first adopter) | **No** | **Yes (v17+)** |
+| Bidirectional State | **Yes (via plugin)** | **Yes (native)** | **Yes (built-in)** | **Yes (Telnet)** | **Yes (HTTP handles)** |
+| Confirmed Execution | No (UDP) | No (TCP stream) | No (UDP) | No (TCP write) | **Yes (HTTP 200)** |
+| Free Software | onPC (no DMX out) | Nomad (no DMX out) | **64 uni free** | 1 universe free | Needs AvoKey |
 
 ### Integration Quality by Use Case
 
-| Use Case | GrandMA3 | ETC Eos | ChamSys MQ | Onyx |
-|----------|:--------:|:-------:|:----------:|:----:|
-| Fire cues from ShowUp moments | **Good** | **Excellent** | **Good** | **Good (Telnet GTQ)** |
-| Capture console looks (DMX) | **Good** | **Excellent** | **Good** | Good |
-| Console fader → ShowUp control | **Good (plugin)** | **Excellent (native)** | **Good (built-in)** | **Good (Telnet SQL poll)** |
-| Know when console fires a cue | **Good (plugin)** | **Excellent (events)** | **Good (K macro)** | **Good (QLActive poll)** |
-| Import cuelist names | Via XML export | Via OSC query | Via CSV export | **Yes (QLList via Telnet)** |
-| Import console's fixture patch | **Excellent** (MVR+GDTF) | Good (MVR+GDTF) | Good (MVR+GDTF+CSV) | **CSV only** |
-| Import console's color palettes | XML export | CSV export | **CSV palette export** | **No export** |
-| Console preset → ShowUp Look | DMX capture + XML | **OSC query + CSV** | DMX capture + CSV | **DMX capture + Telnet** |
-| Auto-failover on disconnect | Good | Good | Good | Good |
-| Universe priority merging | Good | **Excellent** | Good | Good |
+| Use Case | GrandMA3 | ETC Eos | ChamSys MQ | Onyx | Avolites |
+|----------|:--------:|:-------:|:----------:|:----:|:--------:|
+| Fire cues from ShowUp moments | **Good** | **Excellent** | **Good** | **Good (Telnet)** | **Good (HTTP)** |
+| Capture console looks (DMX) | **Good** | **Excellent** | **Good** | Good | Good |
+| Console fader → ShowUp control | **Good (plugin)** | **Excellent** | **Good (built-in)** | **Good (Telnet)** | **Limited (poll)** |
+| Know when console fires a cue | **Good (plugin)** | **Excellent** | **Good (K macro)** | **Good (QLActive)** | **Good (handle poll)** |
+| Import cuelist names | XML export | OSC query | CSV export | **Telnet QLList** | **HTTP handles** |
+| Import fixture patch | **Excellent** (MVR+GDTF) | Good (MVR+GDTF) | Good (MVR+GDTF+CSV) | **CSV only** | GDTF + Capture MVR |
+| Console preset → ShowUp Look | DMX capture + XML | **OSC query + CSV** | DMX capture + CSV | DMX capture + Telnet | **DMX capture** |
+| Auto-failover on disconnect | Good | Good | Good | Good | **Good (HTTP)** |
+| Universe priority merging | Good | **Excellent** | Good | Good | **Good** |
 
 ### Integration Grades
 
 | Console | Grade | Rationale |
 |---------|:-----:|-----------|
-| GrandMA3 | **A-** | Lua plugin solves the feedback gap. Strong MVR/GDTF. Command-based OSC is flexible. WebSocket is a bonus target. |
-| ETC Eos | **A+** | Best integration of any console. Full bidirectional OSC with cue events, fader feedback, palette queries. |
-| ChamSys MQ | **B+** | Built-in feedback was undersold initially. CREP protocol adds a real bidirectional channel. MIDI transmit. Best free software. |
-| Onyx | **B-** | Telnet API (port 2323) transforms integration — cuelist names, active state polling, direct cue/fader control with no 10-fader cap. Still no MVR/GDTF/palette export. |
+| GrandMA3 | **A-** | Lua plugin solves the feedback gap. Strong MVR/GDTF. Command-based OSC is flexible. HTTP heartbeat on 8080. |
+| ETC Eos | **A+** | Best integration of any console. Full bidirectional TCP SLIP OSC with cue events, fader feedback, palette queries. |
+| ChamSys MQ | **B+** | Built-in feedback, CREP protocol, MIDI transmit. Best free software. TCP heartbeat on 4914. |
+| Onyx | **B-** | Telnet API (port 2323) transforms integration — cuelist names, active state polling, direct cue/fader control. Still no MVR/GDTF. |
+| Avolites | **B+** | HTTP/JSON WebAPI gives confirmed execution (unique among all consoles). GDTF support. sACN priority. Handle state polling. No OSC. |
 
 ### Recommended Coexistence Mode by Console
 
@@ -357,7 +397,8 @@ light_console_sdk/
 | GrandMA3 | **Any mode (with plugin)** | Lua plugin makes all modes viable. Layer Mode is natural for touring where ShowUp adds reactive ambiance beneath the LD's programming. |
 | ETC Eos | **Any mode** | Eos's rich bidirectional OSC makes all modes work equally well. Trigger Mode is especially powerful because ShowUp can subscribe to cue execution events. |
 | ChamSys MQ | **Side by Side** or **Trigger** | Built-in playback feedback makes Trigger Mode more viable than initially assessed. Side by Side avoids the 10-playback limit. |
-| Onyx | **Trigger Mode** (via Telnet + MSC) | Telnet API bypasses OSC's 10-fader limit — direct cuelist control + active state polling. MSC for MIDI-based triggering. DMX sniffing for look capture. |
+| Onyx | **Trigger Mode** (via Telnet + MSC) | Telnet API bypasses OSC's 10-fader limit — direct cuelist control + active state polling. MSC for MIDI-based triggering. |
+| Avolites | **Trigger Mode** (via HTTP) | HTTP WebAPI gives confirmed execution for every command. Handle polling provides playback state. Side by Side also works well with sACN priority. |
 
 ---
 
@@ -523,8 +564,8 @@ These appear in a collapsible "Console" section on the Perform screen, visually 
 | Specification | Value |
 |---------------|-------|
 | Language | Dart (pure, no Flutter dependency) |
-| Files | 38 source files |
-| Lines of code | ~5,400 |
+| Files | 41 source files |
+| Lines of code | ~6,200 |
 | Dependencies | `collection` only |
 | sACN packet format | ANSI E1.31-2018 |
 | sACN port | 5568 (standard) |
@@ -534,5 +575,5 @@ These appear in a collapsible "Console" section on the Perform screen, visually 
 | MSC format | MIDI SysEx per MIDI Show Control spec |
 | DMX refresh rate | 44Hz (matches ShowUp engine) |
 | Max universes | 16 (expandable) |
-| Console profiles | 4 built-in + custom |
+| Console profiles | 5 built-in + custom |
 | Import formats | MVR (ZIP/XML), GDTF (ZIP/XML), CSV/TSV |

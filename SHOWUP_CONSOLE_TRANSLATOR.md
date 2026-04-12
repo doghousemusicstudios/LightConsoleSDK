@@ -23,6 +23,7 @@ What happens at the console when a user does something in ShowUp.
 | Onyx | Telnet | `GTQ 1,3\r\n` | **Primary.** Go to cuelist 1, cue 3. Any cuelist, any cue. Port 2323. |
 | Onyx | MSC | `F0 7F 01 02 01 01 33 F7` | Backup. MSC GO, Cue 3. Via MIDI. |
 | Onyx | OSC | `/Mx/Cuelist/1/Go` | Last resort. Via ShowCockpit. Limited to 10 cuelists. |
+| Avolites | HTTP | `GET /titan/script/Playbacks/FirePlaybackAtLevel?userNumber=3&level=1.0` | **HTTP with confirmed response.** Port 4430. |
 
 **Execution modes per binding:**
 - `showupOnly` — ShowUp applies its look; no console command sent
@@ -43,6 +44,7 @@ What happens at the console when a user does something in ShowUp.
 | ChamSys MQ | OSC | `/ch/macro/1/go` | Macro execute via built-in OSC. |
 | Onyx | Telnet | `GQL {n}\r\n` | Fire cuelist containing the macro. Or use dedicated macro cuelist. |
 | Onyx | MSC | `F0 7F 01 02 01 07 31 F7` | MSC FIRE macro. Backup path via MIDI. |
+| Avolites | HTTP | `GET /titan/script/Playbacks/FirePlaybackAtLevel?userNumber={n}&level=1.0` | Fire playback as macro. |
 
 **Common macro → console pairings:**
 
@@ -67,6 +69,7 @@ What happens at the console when a user does something in ShowUp.
 | ChamSys MQ | OSC | `/ch/playback/{n}/level,i,192` | Level as 0-255 int. |
 | Onyx | Telnet | `SQL {n},{level}\r\n` | Set any cuelist level, 0-255. No fader limit. Port 2323. |
 | Onyx | OSC | `/Playbacks/1/Fader,f,0.75` | MainPlaybackFader via ShowCockpit. Limited to 10. |
+| Avolites | HTTP | `GET /titan/script/Playbacks/FirePlaybackAtLevel?userNumber={n}&level=0.75` | Level 0.0-1.0 via HTTP. |
 
 **When to mirror dimmer to console:** Only in Layer or Trigger mode where ShowUp wants the console to match its overall intensity. In Side by Side mode, dimmers are independent.
 
@@ -126,15 +129,15 @@ What happens at the console when a user does something in ShowUp.
 
 These are direct console commands that don't correspond to ShowUp looks or effects — they're pure console remote control:
 
-| Quick Action | GrandMA3 | ETC Eos | ChamSys MQ | Onyx |
-|-------------|----------|---------|------------|------|
-| **Fire Cue {n}** | `/gma3/cmd,s,"Go+ Cue {n}"` | `/eos/cue/1/{n}/fire` | `/ch/playback/1/go` | Telnet: `GTQ 1,{n}` |
-| **Next Cue** | `/gma3/cmd,s,"Go+"` | `/eos/cue/1/0/fire` | `/ch/playback/1/go` | Telnet: `GQL 1` |
-| **Previous Cue** | `/gma3/cmd,s,"GoBack"` | `/eos/cue/1/back` | `/ch/playback/1/back` | MSC STOP + GO_BACK |
-| **Blackout** | `/gma3/cmd,s,"BlackOut"` | `/eos/cmd,s,"Blackout"` | `/ch/playback/0/release` | Telnet: `RAQLDF` |
-| **Release All** | `/gma3/cmd,s,"Off Exec *"` | `/eos/cmd,s,"Release"` | `/ch/release/all` | Telnet: `RAQLO` |
-| **Console Macro {n}** | `/gma3/cmd,s,"Macro {n}"` | `/eos/macro/{n}/fire` | `/ch/macro/{n}/go` | MSC FIRE {n} |
-| **Set Fader {n}** | `/gma3/Page1/Fader{n},f,val` | `/eos/fader/1/{n},f,val` | `/ch/playback/{n}/level,i,val` | Telnet: `SQL {n},{val}` |
+| Quick Action | GrandMA3 | ETC Eos | ChamSys MQ | Onyx | Avolites |
+|-------------|----------|---------|------------|------|----------|
+| **Fire Cue {n}** | `/gma3/cmd "Go+ Cue {n}"` | `/eos/cue/1/{n}/fire` | `/ch/playback/1/go` | `GTQ 1,{n}` | `FirePlaybackAtLevel?userNumber={n}` |
+| **Next Cue** | `/gma3/cmd "Go+"` | `/eos/cue/1/0/fire` | `/ch/playback/1/go` | `GQL 1` | N/A (fire by number) |
+| **Previous Cue** | `/gma3/cmd "GoBack"` | `/eos/cue/1/back` | `/ch/playback/1/back` | MSC GO_BACK | N/A |
+| **Blackout** | `/gma3/cmd "BlackOut"` | `/eos/cmd "Blackout"` | `/ch/playback/0/release` | `RAQLDF` | `KillAllPlaybacks` |
+| **Release All** | `/gma3/cmd "Off Exec *"` | `/eos/cmd "Release"` | `/ch/release/all` | `RAQLO` | `KillAllPlaybacks` |
+| **Console Macro {n}** | `/gma3/cmd "Macro {n}"` | `/eos/macro/{n}/fire` | `/ch/macro/{n}/go` | MSC FIRE {n} | N/A (fire playback) |
+| **Set Fader** | `/gma3/Page1/Fader{n},f,val` | `/eos/fader/1/{n},f,val` | `/ch/playback/{n}/level` | `SQL {n},{val}` | `FirePlaybackAtLevel?level={val}` |
 
 ---
 

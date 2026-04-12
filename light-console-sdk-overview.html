@@ -25,6 +25,7 @@
     --etc-teal: #22d3ee;
     --chamsys-orange: #f97316;
     --onyx-red: #ef4444;
+    --avo-purple: #9333ea;
     --text-primary: #e5e7eb;
     --text-secondary: #9ca3af;
     --text-muted: #6b7280;
@@ -269,8 +270,8 @@
   <h1>LightConsoleSDK</h1>
   <p class="subtitle">ShowUp's co-pilot when the LD is around.<br>Its stunt double when they're not.</p>
   <div class="hero-stats">
-    <div class="hero-stat"><div class="number">38</div><div class="label">Dart Files</div></div>
-    <div class="hero-stat"><div class="number">4</div><div class="label">Console Profiles</div></div>
+    <div class="hero-stat"><div class="number">41</div><div class="label">Dart Files</div></div>
+    <div class="hero-stat"><div class="number">5</div><div class="label">Console Profiles</div></div>
     <div class="hero-stat"><div class="number">3</div><div class="label">Coexistence Modes</div></div>
     <div class="hero-stat"><div class="number">10</div><div class="label">Modules</div></div>
   </div>
@@ -544,6 +545,44 @@
         </div>
       </div>
     </div>
+
+    <!-- Avolites Titan -->
+    <div class="console-card" onclick="toggleConsole(this)">
+      <div class="console-header">
+        <div class="console-logo" style="background: linear-gradient(135deg, #7e22ce, var(--avo-purple));">Av</div>
+        <div><div class="console-name">Avolites Titan</div><div class="console-mfg">Avolites (Arena, Sapphire Touch, Tiger Touch, Quartz, T2, T3)</div></div>
+      </div>
+      <p>HTTP/JSON WebAPI on port 4430. Confirmed execution for every command. GDTF support. No OSC.</p>
+      <div class="console-detail">
+        <div class="card" style="margin-top:16px; background: var(--bg-deep);">
+          <h3 style="color: var(--avo-purple);">What ShowUp Can Do via HTTP WebAPI</h3>
+          <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
+            <li>Fire playbacks via <code>/titan/script/Playbacks/FirePlaybackAtLevel</code></li>
+            <li>Kill playbacks via <code>/titan/script/Playbacks/KillPlayback</code></li>
+            <li>Kill all playbacks (blackout equivalent)</li>
+            <li>Read playback state via <code>/titan/handles/Playbacks</code> (JSON)</li>
+            <li>Read show name, software version, device info</li>
+            <li><strong>Every command returns a JSON response</strong> &mdash; confirmed execution</li>
+            <li>Import GDTF fixtures (Titan v17+ via Personality Builder)</li>
+            <li>sACN with configurable priority per universe</li>
+            <li>MIDI Show Control (MSC) input for triggers</li>
+          </ul>
+        </div>
+        <div class="card" style="background: var(--bg-deep);">
+          <h3 style="color: var(--danger);">Limitations</h3>
+          <ul style="font-size:13px; color:var(--text-secondary); margin-top:8px; padding-left:16px;">
+            <li><strong>No OSC support</strong> at all &mdash; HTTP is the only control protocol</li>
+            <li>No real-time fader positions (active/inactive only via handle polling)</li>
+            <li>WebAPI not available on Titan One or T1 dongle</li>
+            <li>Titan PC Suite requires AvoKey for simulator mode</li>
+          </ul>
+        </div>
+        <div class="card" style="background: var(--bg-deep);">
+          <h3>Recommended Mode</h3>
+          <p style="margin-top:4px;"><strong style="color: var(--avo-purple);">Trigger Mode via HTTP</strong> &mdash; HTTP gives confirmed execution for every command. Handle polling provides playback state. Side by Side also works well with sACN priority.</p>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -560,126 +599,97 @@
         <th>ETC Eos</th>
         <th>ChamSys MQ</th>
         <th>Onyx</th>
+        <th>Avolites</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td><strong>OSC Cue Triggers</strong></td>
+        <td><strong>Primary Protocol</strong></td>
+        <td class="gap-check">OSC (UDP)</td>
+        <td class="gap-best">OSC (TCP SLIP)</td>
+        <td class="gap-check">OSC (UDP)</td>
+        <td class="gap-check">Telnet (TCP)</td>
+        <td class="gap-check">HTTP/JSON</td>
+      </tr>
+      <tr>
+        <td><strong>Cue Triggers</strong></td>
         <td class="gap-check">Yes (via /cmd)</td>
-        <td class="gap-best">Excellent (dedicated addresses)</td>
+        <td class="gap-best">Excellent (dedicated)</td>
         <td class="gap-check">Yes (10 playbacks)</td>
-        <td class="gap-partial">Limited (10 faders via OSC)</td>
+        <td class="gap-check">Telnet GTQ (any)</td>
+        <td class="gap-check">HTTP FirePlayback</td>
       </tr>
       <tr>
-        <td><strong>Telnet/TCP Control</strong></td>
-        <td class="gap-cross">No</td>
-        <td class="gap-cross">No</td>
-        <td class="gap-cross">No</td>
-        <td class="gap-best">Any cuelist, any cue (GTQ)</td>
+        <td><strong>Confirmed Execution</strong></td>
+        <td class="gap-cross">No (UDP)</td>
+        <td class="gap-partial">TCP stream</td>
+        <td class="gap-cross">No (UDP)</td>
+        <td class="gap-partial">TCP write</td>
+        <td class="gap-best">Yes (HTTP 200)</td>
       </tr>
       <tr>
-        <td><strong>OSC Fader Control</strong></td>
-        <td class="gap-check">Yes</td>
-        <td class="gap-best">Yes + bidirectional</td>
-        <td class="gap-check">Yes (10 playbacks)</td>
-        <td class="gap-check">Yes (SQL via Telnet)</td>
-      </tr>
-      <tr>
-        <td><strong>OSC Feedback (Console &rarr; ShowUp)</strong></td>
-        <td class="gap-check">Yes (Lua plugin)</td>
-        <td class="gap-best">Full native (/eos/out/)</td>
-        <td class="gap-check">Built-in (/feedback/)</td>
-        <td class="gap-partial">Main PBs only</td>
+        <td><strong>Console &rarr; ShowUp Feedback</strong></td>
+        <td class="gap-check">Lua plugin</td>
+        <td class="gap-best">Full native</td>
+        <td class="gap-check">Built-in /feedback/</td>
+        <td class="gap-check">Telnet polling</td>
+        <td class="gap-check">HTTP handle polling</td>
       </tr>
       <tr>
         <td><strong>MIDI Show Control</strong></td>
-        <td class="gap-cross">Not supported</td>
-        <td class="gap-check">Yes (up to 32 sources)</td>
+        <td class="gap-cross">No</td>
+        <td class="gap-check">Yes (32 sources)</td>
         <td class="gap-partial">Partial</td>
         <td class="gap-check">Yes</td>
+        <td class="gap-partial">Input only</td>
       </tr>
       <tr>
-        <td><strong>MIDI Notes / CC</strong></td>
-        <td class="gap-check">Yes</td>
-        <td class="gap-check">Yes</td>
-        <td class="gap-check">Yes</td>
-        <td class="gap-check">Yes</td>
-      </tr>
-      <tr>
-        <td><strong>sACN Output</strong></td>
+        <td><strong>sACN Priority</strong></td>
         <td class="gap-check">Yes</td>
         <td class="gap-best">Yes (inventor)</td>
         <td class="gap-check">Yes</td>
         <td class="gap-check">Yes</td>
-      </tr>
-      <tr>
-        <td><strong>sACN Priority Merging</strong></td>
         <td class="gap-check">Yes</td>
-        <td class="gap-check">Yes</td>
-        <td class="gap-check">Yes</td>
-        <td class="gap-check">Yes</td>
-      </tr>
-      <tr>
-        <td><strong>Art-Net</strong></td>
-        <td class="gap-check">Yes</td>
-        <td class="gap-check">Yes</td>
-        <td class="gap-check">Yes</td>
-        <td class="gap-check">Yes</td>
-      </tr>
-      <tr>
-        <td><strong>MVR Import / Export</strong></td>
-        <td class="gap-best">Native (co-creator)</td>
-        <td class="gap-check">Import (v3.2+)</td>
-        <td class="gap-check">Import</td>
-        <td class="gap-cross">Not supported</td>
       </tr>
       <tr>
         <td><strong>GDTF Fixtures</strong></td>
-        <td class="gap-best">Native (co-creator)</td>
-        <td class="gap-partial">Limited import</td>
-        <td class="gap-check">Yes (first adopter)</td>
-        <td class="gap-cross">Not confirmed</td>
+        <td class="gap-best">Co-creator</td>
+        <td class="gap-partial">Limited</td>
+        <td class="gap-check">First adopter</td>
+        <td class="gap-cross">No</td>
+        <td class="gap-check">Yes (v17+)</td>
       </tr>
       <tr>
-        <td><strong>Console Fader &rarr; ShowUp Param</strong></td>
-        <td class="gap-check">Yes (Lua plugin)</td>
-        <td class="gap-best">Yes (native, 3s delay)</td>
-        <td class="gap-check">Yes (mqosc / feedback)</td>
-        <td class="gap-check">Yes (SQL poll via Telnet)</td>
+        <td><strong>MVR Import</strong></td>
+        <td class="gap-best">Native</td>
+        <td class="gap-check">v3.2+</td>
+        <td class="gap-check">Yes</td>
+        <td class="gap-cross">No</td>
+        <td class="gap-partial">Via Capture</td>
       </tr>
       <tr>
-        <td><strong>Cue Execution Events</strong></td>
-        <td class="gap-check">Yes (Lua plugin)</td>
-        <td class="gap-best">Yes (native events)</td>
-        <td class="gap-check">Yes (K macro)</td>
-        <td class="gap-check">Yes (QLActive poll via Telnet)</td>
+        <td><strong>Fader &rarr; ShowUp Param</strong></td>
+        <td class="gap-check">Lua plugin</td>
+        <td class="gap-best">Native (3s delay)</td>
+        <td class="gap-check">mqosc / feedback</td>
+        <td class="gap-check">Telnet SQL poll</td>
+        <td class="gap-partial">Handle poll only</td>
       </tr>
       <tr>
-        <td><strong>MIDI Transmit (Console &rarr;)</strong></td>
-        <td class="gap-partial">Notes only</td>
-        <td class="gap-check">MSC + Notes</td>
-        <td class="gap-check">Notes on playback</td>
-        <td class="gap-cross">None (receive only)</td>
-      </tr>
-      <tr>
-        <td><strong>Alternative Protocol</strong></td>
-        <td class="gap-check">Lua API, WebSocket</td>
-        <td class="gap-partial">&mdash;</td>
-        <td class="gap-best">CREP (binary UDP)</td>
-        <td class="gap-best">Telnet API (port 2323)</td>
-      </tr>
-      <tr>
-        <td><strong>Cuelist Names Readable</strong></td>
-        <td class="gap-check">Via XML export</td>
-        <td class="gap-check">Via OSC query</td>
-        <td class="gap-check">Via CSV export</td>
-        <td class="gap-best">QLList via Telnet (live)</td>
+        <td><strong>Cue Events</strong></td>
+        <td class="gap-check">Lua plugin</td>
+        <td class="gap-best">Native events</td>
+        <td class="gap-check">K macro</td>
+        <td class="gap-check">QLActive poll</td>
+        <td class="gap-check">Handle poll</td>
       </tr>
       <tr>
         <td><strong>Palette/Preset Export</strong></td>
         <td class="gap-check">XML export</td>
         <td class="gap-check">CSV export</td>
         <td class="gap-best">CSV palette export</td>
+        <td class="gap-cross">No export</td>
+        <td class="gap-cross">No export</td>
         <td class="gap-cross">No export</td>
       </tr>
       <tr>
@@ -714,6 +724,11 @@
         <div style="font-size: 32px; margin-bottom: 8px; color: var(--onyx-red);">B-</div>
         <div style="font-size: 14px; font-weight: 600;">Onyx</div>
         <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Telnet API transforms integration. Cuelist names + active polling. No MVR/GDTF.</div>
+      </div>
+      <div style="text-align: center; padding: 16px; border-radius: var(--radius-sm); background: var(--bg-deep); border: 1px solid rgba(147,51,234,0.3);">
+        <div style="font-size: 32px; margin-bottom: 8px; color: var(--avo-purple);">B+</div>
+        <div style="font-size: 14px; font-weight: 600;">Avolites</div>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">HTTP gives confirmed execution. GDTF. sACN priority. Handle polling.</div>
       </div>
     </div>
   </div>
